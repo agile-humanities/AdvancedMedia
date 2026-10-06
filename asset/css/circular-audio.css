@@ -1,0 +1,107 @@
+/*
+ * Circular audio player + transcript sync.
+ * Migrated from AgileThemeTools; cleaned (removed obsolete ::cue / -webkit
+ * media-text-track rules and a stray comment) and reworked for progressive
+ * enhancement: the native <video> shows until JS adds `.ca-enhanced`.
+ */
+
+.ca-player-container,
+.ca-player-container *,
+.ca-player-container *::after,
+.ca-player-container *::before {
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+.ca-player-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin: 10px auto;
+}
+
+/* Active transcript segment + hover affordance. */
+.cue-active {
+    background-color: #ff9;
+}
+
+.vtt-segment:hover {
+    cursor: pointer;
+    background-color: #ffffe0;
+}
+
+/* --- Progressive enhancement ---------------------------------------------
+   Before JS upgrades the player, show the native <video controls> and hide the
+   SVG. Once the container gets `.ca-enhanced`, swap them. */
+.ca-player-container svg {
+    display: none;
+}
+
+.ca-player-container.ca-enhanced svg {
+    display: block;
+    width: 400px;
+    margin: 0 auto;
+    cursor: pointer;
+}
+
+.ca-player-container.ca-enhanced video {
+    visibility: hidden;
+    height: 1px;
+}
+
+/* --- SVG control visibility by player state ------------------------------- */
+.ca-player-container svg .control {
+    opacity: 0;
+    transition: opacity .2s linear;
+}
+
+.ca-player-container svg.not-started .play,
+.ca-player-container svg.paused .play {
+    opacity: 1;
+}
+
+.ca-player-container svg.playing .pause {
+    opacity: 1;
+}
+
+.ca-player-container svg.ended .stop {
+    opacity: 1;
+}
+
+.ca-player-container svg.not-started .progress-bar,
+.ca-player-container svg.ended .progress-bar {
+    display: none;
+}
+
+.ca-player-container svg.ended .progress-track {
+    stroke-opacity: 1;
+}
+
+.ca-player-container svg .progress-bar,
+.ca-player-container svg .precache-bar {
+    stroke-dasharray: 298.1371428256714;
+    stroke-dashoffset: 298.1371428256714;
+}
+
+.ca-player-container .controls {
+    pointer-events: all;
+}
+
+/* Pass pointer events through the decorative control groups to the hit area. */
+.ca-player-container g.control {
+    pointer-events: none;
+}
+
+.ca-timer {
+    margin: 1rem 0;
+    font-size: 0.8rem;
+}
+
+.ca-caption {
+    margin-top: 1rem;
+    font-weight: 500;
+    font-size: 16px;
+}

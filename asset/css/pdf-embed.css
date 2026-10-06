@@ -1,0 +1,38 @@
+/* Native-browser PDF reader (AdvancedMedia\Media\Player\PdfEmbed). */
+
+.advancedmedia-pdf {
+    width: 100%;
+}
+
+/*
+ * An <object> has no intrinsic height — without one it collapses to a few pixels
+ * and the reader looks broken rather than absent. 80vh keeps the page furniture
+ * visible around it; min-height keeps it usable in a short viewport.
+ */
+.advancedmedia-pdf-frame {
+    display: block;
+    width: 100%;
+    height: 80vh;
+    min-height: 24rem;
+    border: 0;
+    background: #f4f4f4;
+}
+
+.advancedmedia-pdf-fallback {
+    padding: 1rem;
+    text-align: center;
+}
+
+.advancedmedia-pdf-fallback img {
+    max-width: 100%;
+    height: auto;
+}
+
+/*
+ * Outside the <object> on purpose: browsers that render PDFs badly (iOS Safari)
+ * still claim the type, so they never show the object's fallback content. This
+ * link is what those users actually get.
+ */
+.advancedmedia-pdf-download {
+    margin: 0.5rem 0 0;
+}

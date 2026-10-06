@@ -1,0 +1,15 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var string $embedHtml Rendered third-party embed markup (e.g. a Matterport iframe).
+ * @var \Omeka\Api\Representation\MediaRepresentation $embed
+ * @var \Omeka\Api\Representation\MediaRepresentation|null $poster
+ *      The item's poster image. Claimed by this compound and deliberately not
+ *      rendered — the embed supersedes it. Pending design review, which may
+ *      reinstate it (e.g. as a click-to-load placeholder for the iframe); it is
+ *      passed in so that becomes a change here and nowhere else.
+ */
+?>
+<div class="advancedmedia-compound interactive-resource">
+  <?= $embedHtml ?>
+</div>

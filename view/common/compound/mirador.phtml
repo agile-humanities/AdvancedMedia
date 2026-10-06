@@ -1,0 +1,15 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var string $galleryHtml Rendered Mirador viewer markup.
+ * @var \Omeka\Api\Representation\ItemRepresentation $item
+ *
+ * NOTE the wrapper class is `mirador-embed`, NOT `mirador`. The Mirador module's own
+ * stylesheet carries a bare `.mirador` rule and its container already renders with
+ * class="mirador viewer" — naming our wrapper `.mirador` would silently inherit that
+ * viewer's sizing and positioning. The compound is called Mirador; its wrapper is not.
+ */
+?>
+<div class="advancedmedia-compound mirador-embed">
+  <?= $galleryHtml ?>
+</div>

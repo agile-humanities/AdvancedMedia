@@ -1,0 +1,623 @@
+<?php
+/**
+ * The shared configuration component. Mounted at BOTH scopes (config-ui-spec §2.3):
+ * global (module config, where we own the page) and site (inside core's settings
+ * form, which has no tabs). Only the surrounding chrome differs.
+ *
+ * Section order (top to bottom): status/anomaly alerts, summary, per-site overview,
+ * then the four editable sets — General settings, Media players and downloads,
+ * Resource template overrides, Media structures.
+ *
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var array $options From AdvancedMedia\Config\ConfigOptions::build()
+ */
+$escape = $this->plugin('escapeHtml');
+$escapeAttr = $this->plugin('escapeHtmlAttr');
+$translate = $this->plugin('translate');
+
+$scope = $options['scope'];
+$context = $options['context'];
+$keys = $options['keys'];
+$stored = $options['stored'];
+$inherited = $options['inherited'];
+$inheritLabel = $translate($options['inheritLabel']);
+
+/**
+ * One row: a select whose EMPTY option means "inherit".
+ *
+ * The inherit option is labelled with what the row would actually resolve to, so an
+ * inherited row and a row explicitly set to the same value are visibly different.
+ * Losing that distinction is what silently breaks propagation of later global
+ * changes (architecture §5.2) — it is the whole reason the null state exists.
+ */
+$row = function (string $settingKey, string $rowKey, array $choices, ?string $storedValue, ?string $inheritedValue, ?string $emptyLabel = null)
+    use ($escape, $escapeAttr, $translate, $context, $inheritLabel, $scope) {
+    $name = sprintf('%s[%s][%s]', $settingKey, $context, $rowKey);
+    $isInheriting = ($storedValue === null || $storedValue === '');
+    $effective = $isInheriting ? $inheritedValue : $storedValue;
+
+    // A template row that is unset is not "using a default" — there IS no default
+    // template mapping. It simply is not overriding anything, and the structure rows
+    // decide. Say that, rather than inventing a default that does not exist.
+    $inheritText = $emptyLabel !== null ? $translate($emptyLabel) : $inheritLabel;
+    if ($emptyLabel === null && $inheritedValue !== null) {
+        $inheritText .= sprintf(' (%s: %s)', $translate('currently'),
+            $choices[$inheritedValue] ?? $inheritedValue);
+    }
+
+    // escapeHtml, not escapeHtmlAttr: these attributes are double-quoted and the
+    // values are internal keys (setting names, media types, compound names).
+    // escapeHtmlAttr hex-encodes every non-alphanumeric character, which turns
+    // name="advancedmedia_players[page][image/jpeg]" into unreadable soup. It still
+    // POSTs correctly — browsers decode entities — but nobody can debug it.
+    $html = sprintf(
+        '<select name="%s" class="advmedia-select%s">',
+        $escape($name),
+        $isInheriting ? ' is-inherited' : ''
+    );
+    $html .= sprintf('<option value=""%s>%s</option>',
+        $isInheriting ? ' selected' : '', $escape($inheritText));
+    foreach ($choices as $value => $label) {
+        $html .= sprintf('<option value="%s"%s>%s</option>',
+            $escape((string) $value),
+            (!$isInheriting && $storedValue === (string) $value) ? ' selected' : '',
+            $escape($translate($label))
+        );
+    }
+    $html .= '</select>';
+
+    // At GLOBAL scope an explicit value is self-evident from the select itself
+    // ("Yes" is plainly not "Use default"), and there is nothing above global to
+    // override — so no badge. At SITE scope the badge names what the row actually
+    // does: it overrides the global value, and saying so is the useful part.
+    if (!$isInheriting && $scope === 'site') {
+        $html .= sprintf(' <span class="advmedia-overridden">%s</span>', $escape($translate('overrides global')));
+    }
+    // A stored value we can no longer offer (its module was uninstalled). Never
+    // rewritten — the module may come back (config-ui-spec §8).
+    if (!$isInheriting && !isset($choices[$storedValue])) {
+        $html .= sprintf(
+            '<p class="advmedia-warn">%s <code>%s</code> %s <strong>%s</strong>.</p>',
+            $escape($translate('Warning:')),
+            $escape($storedValue),
+            $escape($translate('is not available in this install, so this row is being ignored. Effective:')),
+            $escape($effective !== null && isset($choices[$effective]) ? $choices[$effective] : $translate('individual media'))
+        );
+    }
+    return $html;
+};
+?>
+
+<style>
+.advmedia-config h3 { margin-top: 1.6em; }
+.advmedia-config h4 { margin: 0 0 .4em; font-size: 1em; }
+.advmedia-config .advmedia-band { border-left: 3px solid #ddd; padding-left: 1em; margin-bottom: 2em; }
+.advmedia-config table { width: 100%; border-collapse: collapse; }
+.advmedia-config td { padding: .5em .6em; vertical-align: top; border-bottom: 1px solid #eee; }
+.advmedia-config td.advmedia-key { width: 40%; }
+.advmedia-config .advmedia-count { color: #767676; font-weight: normal; }
+.advmedia-config .advmedia-desc { color: #555; margin: .15em 0 0; }
+/* Inherited rows are muted, NOT italic: the admin font's italics are hard to read at
+   this size, and colour alone carries the distinction perfectly well. */
+.advmedia-config .advmedia-select.is-inherited { color: #767676; }
+.advmedia-config select, .advmedia-config option { font-style: normal; }
+.advmedia-config .advmedia-overridden { font-size: .85em; color: #a35200; text-transform: uppercase; letter-spacing: .04em; }
+.advmedia-config .advmedia-warn { color: #a11; margin: .3em 0 0; font-size: .9em; }
+.advmedia-config details { margin: .35em 0 0; }
+.advmedia-config details summary { cursor: pointer; color: #366; font-size: .9em; }
+.advmedia-config details ul { margin: .4em 0 .2em 1.2em; color: #555; font-size: .9em; }
+.advmedia-config .advmedia-note { background: #f4f7f9; border: 1px solid #dde3e8; padding: .7em .9em; margin: .6em 0 1em; }
+.advmedia-config .advmedia-alert { background: #fff6e5; border: 1px solid #e0b970; padding: .8em 1em; margin: 0 0 1.4em; }
+.advmedia-config .advmedia-alert h4 { margin: 0 0 .4em; }
+.advmedia-config .advmedia-alert ul { margin: .4em 0 .6em 1.2em; }
+.advmedia-config .advmedia-summary { color: #555; margin: 0 0 1.2em; }
+.advmedia-config .advmedia-overview { margin: 0 0 1.6em; }
+.advmedia-config .advmedia-overview td, .advmedia-config .advmedia-overview th { text-align: left; padding: .35em .6em; border-bottom: 1px solid #eee; }
+.advmedia-config th { text-align: left; padding: .5em .6em; border-bottom: 2px solid #ddd; font-size: .9em; color: #555; }
+.advmedia-config .advmedia-setting { margin-bottom: 1.4em; }
+.advmedia-config .advmedia-setting:last-child { margin-bottom: 0; }
+.advmedia-config .advmedia-explain p { margin: .4em 0; color: #555; }
+.advmedia-config .advmedia-serve-status { margin: .4em 0 0; }
+.advmedia-config .advmedia-jobwarn { margin: .5em 0 0; padding: .5em .7em; background: #fff6e5; border-left: 3px solid #e0b970; }
+.advmedia-config .advmedia-snippet { margin: .5em 0 0; padding: .7em .9em; background: #1d1f21; color: #e8e8e8; font-size: .82em; line-height: 1.45; border-radius: 3px; overflow-x: auto; white-space: pre; }
+.advmedia-config .advmedia-probe { margin: .6em 0 0; }
+.advmedia-config .advmedia-probe p { margin: .2em 0; }
+.advmedia-config .advmedia-probe-detail { font-size: .9em; color: #767676; }
+.advmedia-config .advmedia-intro { margin: 0 0 1.6em; padding: .8em 1em; background: #eef3f7; border: 1px solid #d4dde6; }
+.advmedia-config .advmedia-intro p { margin: 0 0 .5em; }
+.advmedia-config .advmedia-intro ul { margin: .4em 0 0 1.2em; }
+.advmedia-config .advmedia-intro li { margin: .35em 0; color: #333; }
+</style>
+
+<div class="advmedia-config">
+
+  <?php // ── INTRO ── orientation for an admin who knows Omeka S but not this module.
+        // Plain language: "file type" not MIME, "grouped viewer" not compound/structure.
+        // The overrides bullet is scope-aware — its whole job is to point at the OTHER
+        // scope (global tells you where the site override lives; site tells you where the
+        // global defaults live). ?>
+  <div class="advmedia-intro">
+    <p><strong><?= $escape($translate('How this page works.')) ?></strong>
+      <?= $escape($translate('This page controls how your items display their media and which files visitors can download. Nothing here appears on your site until you add the module’s blocks to the item page, in your theme’s resource-page settings.')) ?></p>
+    <ul>
+      <li>
+        <strong><?= $escape($translate('The blocks.')) ?></strong>
+        <?= $escape($translate('Add the “Advanced media” resource block to show each item’s files using the players and viewers chosen here, and the “Downloads” resource block to show download buttons. Nothing takes effect until a block is placed. Resource blocks are placed on individual sites through Theme Settings > Configure Resource Pages.')) ?>
+      </li>
+      <li>
+        <strong><?= $escape($translate('Players and grouped viewers.')) ?></strong>
+        <?= $escape($translate('Under “Media players and downloads”, choose how each type of file plays on its own. Under “Media structures”, choose how related files are shown together — an audio file with its transcript, or a set of images as a gallery.')) ?>
+      </li>
+      <li>
+        <strong><?= $escape($translate('Downloads.')) ?></strong>
+        <?= $escape($translate('In that same “Media players and downloads” section, mark which file types the Downloads block offers. Each becomes its own button, and a file can both play on the page and be downloaded.')) ?>
+      </li>
+      <?php if ($scope === 'site'): ?>
+        <li>
+          <strong><?= $escape($translate('Overrides.')) ?></strong>
+          <?= $escape($translate('These settings apply to this site only and take precedence over the global defaults. To change the defaults for every site, go to Modules → Advanced media. The “Resource template overrides” section steers items built on a chosen template to a particular viewer.')) ?>
+        </li>
+      <?php else: ?>
+        <li>
+          <strong><?= $escape($translate('Overrides.')) ?></strong>
+          <?= $escape($translate('These are the defaults for every site. Any individual site can override them from its own “Media” page, in that site’s admin sidebar. The “Resource template overrides” section steers items built on a chosen template to a particular viewer.')) ?>
+        </li>
+      <?php endif; ?>
+    </ul>
+  </div>
+
+  <?php // ── LAYER 3 ── surface anomalies, but ONLY when they actually exist. A banner on
+        // the happy path trains admins to ignore banners. ?>
+  <?php $anomalies = $options['anomalies']; ?>
+
+  <?php if ($anomalies['anyEmpty']): ?>
+    <?php $emptyCount = 0; foreach ($anomalies['empty'] as $rows) { $emptyCount += count($rows); } ?>
+    <div class="advmedia-alert">
+      <h4><?= sprintf($escape($translate('%d stored rows here are empty and are being ignored.')), $emptyCount) ?></h4>
+      <p>
+        <?= $escape($translate('They are NOT affecting how anything renders — an empty row is read as “inherit”, which is what these rows already do. They are leftover debris from an earlier save or a hand-edited setting.')) ?>
+        <strong><?= $escape($translate('Clearing them is always safe and cannot change any display.')) ?></strong>
+      </p>
+      <button type="submit" name="advancedmedia_clear_empty" value="1">
+        <?= $escape($translate('Clear empty rows')) ?>
+      </button>
+    </div>
+  <?php endif; ?>
+
+  <?php // Server-side fetch failures. Unlike the anomalies above, these are not
+        // configuration debris — they mean something the server tried to READ over
+        // HTTP could not be reached, which degrades silently (an empty transcript,
+        // a missing tile) rather than erroring. Surfaced here because the symptom
+        // is invisible on the page it affects. ?>
+  <?php if (!empty($options['fetchFailures'])): ?>
+    <div class="advmedia-alert">
+      <h4><?= $escape($translate('Some media files could not be read by the server.')) ?></h4>
+      <p>
+        <?= $escape($translate('These are server-side reads (transcripts, tile metadata), not browser requests — so the pages involved still load, just with something missing.')) ?>
+        <strong><?= $escape($translate('The usual cause is file proxying being on while the base URI is not reachable from the server itself')) ?></strong>
+        <?= $escape($translate('— for example a public hostname or port that only resolves outside the container or behind the proxy.')) ?>
+      </p>
+      <ul>
+        <?php foreach ($options['fetchFailures'] as $f): ?>
+          <li>
+            <code><?= $escape((string) ($f['url'] ?? '')) ?></code>
+            <span class="advmedia-count">— <?= $escape((string) ($f['context'] ?? '')) ?>,
+              <?= $escape((string) ($f['at'] ?? '')) ?></span>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+      <button type="submit" name="advancedmedia_clear_fetch_failures" value="1">
+        <?= $escape($translate('Clear these')) ?>
+      </button>
+    </div>
+  <?php endif; ?>
+
+  <?php if ($anomalies['orphan'] || $anomalies['unknown']): ?>
+    <div class="advmedia-alert">
+      <h4><?= $escape($translate('Some stored rows cannot currently be applied.')) ?></h4>
+      <p><?= $escape($translate('They are being ignored, and they are being KEPT — a viewer’s module may be reinstalled, and discarding your choice would be worse than the row sitting idle. Nothing here is affecting the display.')) ?></p>
+      <ul>
+        <?php foreach ($anomalies['orphan'] as $o): ?>
+          <li><code><?= $escape($o['row']) ?></code> → <code><?= $escape($o['value']) ?></code>
+            — <?= $escape($translate('that viewer is not available in this installation.')) ?></li>
+        <?php endforeach; ?>
+        <?php foreach ($anomalies['unknown'] as $u): ?>
+          <li><code><?= $escape($u['row']) ?></code> → <code><?= $escape($u['value']) ?></code>
+            — <?= $escape($translate('that row no longer applies to anything here.')) ?></li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+  <?php endif; ?>
+
+  <p class="advmedia-summary">
+    <?php // "overridden" only where there is something above to override (site
+          // scope). At global a row is just "set" — see the per-row badge note. ?>
+    <?php if ($options['summary']['overrides'] === 0): ?>
+      <?= $scope === 'site'
+        ? $escape($translate('This site overrides nothing. Every row follows the global default.'))
+        : $escape($translate('Nothing is set here. Every row follows its default.')) ?>
+    <?php else: ?>
+      <strong><?= sprintf($escape($scope === 'site'
+          ? $translate('%d of %d media players override the global default here.')
+          : $translate('%d of %d media players are currently set here.')),
+        $options['summary']['overrides'], $options['summary']['total']) ?></strong>
+      <?= $scope === 'site'
+        ? $escape($translate('The rest follow the global default and will track any future change to it.'))
+        : $escape($translate('The rest follow their defaults.')) ?>
+    <?php endif; ?>
+  </p>
+
+  <?php // ── The cross-site overview. This is what makes a site that has drifted away
+        // from global FINDABLE, rather than something discovered months later. ?>
+  <?php if ($scope === 'global' && !empty($options['siteOverview'])): ?>
+    <h3><?= $escape($translate('Per-site overrides')) ?></h3>
+    <table class="advmedia-overview">
+      <tr>
+        <th><?= $escape($translate('Site')) ?></th>
+        <th><?= $escape($translate('Overrides')) ?></th>
+        <th><?= $escape($translate('Empty rows')) ?></th>
+      </tr>
+      <?php foreach ($options['siteOverview'] as $site): ?>
+        <tr>
+          <td><?= $escape($site['title']) ?> <span class="advmedia-count">(<?= $escape($site['slug']) ?>)</span></td>
+          <td><?= (int) $site['overrides'] ?></td>
+          <td><?= $site['empty'] ? '⚠ ' . (int) $site['empty'] : '—' ?></td>
+        </tr>
+      <?php endforeach; ?>
+    </table>
+  <?php endif; ?>
+
+  <?php // ══ SET 1 ── GENERAL SETTINGS ══ the switches that are not media-type
+        // mappings: the optional media-URL proxy (global scope only) and the
+        // downloads threshold (both scopes). ?>
+  <h3><?= $escape($translate('General settings')) ?></h3>
+  <div class="advmedia-band">
+
+    <?php // ---- Display policy — global is a plain on/off (the base); site is a
+          // tri-state that can inherit the global value ---- ?>
+    <?php if (!empty($options['primaryCompoundOnly'])): $pco = $options['primaryCompoundOnly']; ?>
+      <section class="advmedia-setting">
+        <h4><?= $escape($translate('What media to display')) ?></h4>
+        <?php if ($pco['scope'] === 'site'): ?>
+          <?php $globalLabel = $pco['global'] ? $translate('on') : $translate('off'); ?>
+          <p>
+            <label>
+              <strong><?= $escape($translate('Only display primary and grouped media')) ?></strong>
+              <select name="<?= $escape($pco['key']) ?>" class="advmedia-select<?= $pco['siteStored'] === '' ? ' is-inherited' : '' ?>">
+                <option value=""<?= $pco['siteStored'] === '' ? ' selected' : '' ?>>
+                  <?= sprintf($escape($translate('Use global default (currently: %s)')), $escape($globalLabel)) ?>
+                </option>
+                <option value="1"<?= $pco['siteStored'] === '1' ? ' selected' : '' ?>><?= $escape($translate('On')) ?></option>
+                <option value="0"<?= $pco['siteStored'] === '0' ? ' selected' : '' ?>><?= $escape($translate('Off')) ?></option>
+              </select>
+            </label>
+          </p>
+          <p class="advmedia-desc">
+            <?= $escape($translate('This site follows the global setting unless you override it here. The global default is set under Modules → Advanced media.')) ?>
+          </p>
+        <?php else: ?>
+          <p>
+            <label>
+              <input type="checkbox" name="<?= $escape($pco['key']) ?>" value="1"
+                <?= $pco['global'] ? 'checked' : '' ?>>
+              <strong><?= $escape($translate('Only display primary and grouped media')) ?></strong>
+            </label>
+          </p>
+        <?php endif; ?>
+        <p class="advmedia-desc">
+          <?= $escape($translate('When on, a file that is neither the item’s primary media nor shown in a viewer (gallery, paged document, audio-with-transcript, …) is hidden — so an item with many loose files shows just its primary one instead of a stack of everything. When off, every file is displayed through its mapped player. This does not change how anything is rendered, only whether it appears.')) ?>
+        </p>
+      </section>
+    <?php endif; ?>
+
+    <?php // ---- Display ORDER — a sibling of the policy above (that one decides
+          // WHETHER a file appears; this one decides WHERE). Same two-scope shape:
+          // plain on/off at global, tri-state that can inherit it at site. ---- ?>
+    <?php if (!empty($options['primaryFirst'])): $pf = $options['primaryFirst']; ?>
+      <section class="advmedia-setting">
+        <h4><?= $escape($translate('What order to display media in')) ?></h4>
+        <?php if ($pf['scope'] === 'site'): ?>
+          <?php $globalLabel = $pf['global'] ? $translate('on') : $translate('off'); ?>
+          <p>
+            <label>
+              <strong><?= $escape($translate('Display primary media first')) ?></strong>
+              <select name="<?= $escape($pf['key']) ?>" class="advmedia-select<?= $pf['siteStored'] === '' ? ' is-inherited' : '' ?>">
+                <option value=""<?= $pf['siteStored'] === '' ? ' selected' : '' ?>>
+                  <?= sprintf($escape($translate('Use global default (currently: %s)')), $escape($globalLabel)) ?>
+                </option>
+                <option value="1"<?= $pf['siteStored'] === '1' ? ' selected' : '' ?>><?= $escape($translate('On')) ?></option>
+                <option value="0"<?= $pf['siteStored'] === '0' ? ' selected' : '' ?>><?= $escape($translate('Off')) ?></option>
+              </select>
+            </label>
+          </p>
+          <p class="advmedia-desc">
+            <?= $escape($translate('This site follows the global setting unless you override it here. The global default is set under Modules → Advanced media.')) ?>
+          </p>
+        <?php else: ?>
+          <p>
+            <label>
+              <input type="checkbox" name="<?= $escape($pf['key']) ?>" value="1"
+                <?= $pf['global'] ? 'checked' : '' ?>>
+              <strong><?= $escape($translate('Display primary media first')) ?></strong>
+            </label>
+          </p>
+        <?php endif; ?>
+        <p class="advmedia-desc">
+          <?= $escape($translate('Media normally display in the order they are attached to the item, which editors control by dragging them into place — so a file placed ahead of the primary media stays ahead of it. When this is on, the primary media is shown first instead, and everything else follows in attachment order. If the primary media is part of a viewer (one image of a gallery, one page of a document), that whole viewer moves to the front; the order inside a viewer is unaffected. Off by default, so changing it is a deliberate decision.')) ?>
+        </p>
+      </section>
+    <?php endif; ?>
+
+    <?php // ---- Media URL proxying (global scope only; $options['proxy'] is null at site) ---- ?>
+    <?php if (!empty($options['proxy'])): $proxy = $options['proxy']; ?>
+      <section class="advmedia-setting">
+        <h4><?= $escape($translate('Media URL proxying')) ?></h4>
+        <?php if (!$proxy['available']): ?>
+          <p><em><?= $escape($translate('Not applicable: this installation does not use a remote file store, so media URLs already point at this site.')) ?></em></p>
+        <?php else: ?>
+          <p>
+            <label>
+              <input type="checkbox" name="<?= $escape($proxy['enabledKey']) ?>" value="1"
+                <?= $proxy['enabled'] ? 'checked' : '' ?>>
+              <strong><?= $escape($translate('Route external media URLs through this site')) ?></strong>
+            </label>
+          </p>
+          <p>
+            <label>
+              <?= $escape($translate('Base URI (optional)')) ?>
+              <input type="text" size="52" name="<?= $escape($proxy['baseUriKey']) ?>"
+                value="<?= $escape($proxy['pinnedBaseUri']) ?>"
+                placeholder="<?= $escape((string) $proxy['effectiveBaseUri']) ?>">
+            </label>
+            <div class="advmedia-count">
+              <?= $escape($translate('Rewrite external media URLs (e.g. S3 URLs) to act like internal ones. This will allow you to build network security rules around a consistent media file path (i.e. “./files”). Leave the Base URL blank for automatic detection. Some networking settings are not compatible with this feature. A compatibility check has been run:')) ?>
+            </div>
+          </p>
+          <?php // Background jobs have no web request to auto-detect the base URI from,
+                // so with it blank the proxying store self-disables in a job and bakes
+                // EXTERNAL (S3) URLs into whatever the job writes (IIIF manifest cache,
+                // Solr index). Pinning the value fixes that. This is a real footgun on
+                // first deploy — surface it right at the field. ?>
+          <p class="advmedia-desc advmedia-jobwarn">
+            <strong><?= $escape($translate('Running background jobs?')) ?></strong>
+            <?= $escape($translate('Set the Base URI explicitly before rebuilding the IIIF cache or reindexing search. Those run as background jobs with no web request to detect the address from, so a blank value makes them fall back to the external (S3) URLs and store those in the cache. Set it, then run the jobs.')) ?>
+          </p>
+          <?php if (!empty($proxy['lastProbe'])): $p = $proxy['lastProbe']; ?>
+            <?php // Non-technical summary first (on failure it states plainly that
+                  // the feature cannot be used and stays off), then the technical
+                  // line beneath it for whoever can act on it. ?>
+            <?php
+              $probeSummary = (string) ($p['summary'] ?? '');
+              if ($probeSummary === '') {
+                  $probeSummary = empty($p['ok'])
+                      ? $translate('Media URL proxying cannot be used on this installation, so it has been left off.')
+                      : $translate('Media URL proxying is available.');
+              }
+            ?>
+            <div class="advmedia-probe <?= empty($p['ok']) ? 'advmedia-warn' : 'advmedia-desc' ?>">
+              <p><strong><?= $escape($probeSummary) ?></strong></p>
+              <?php if (!empty($p['message'])): ?>
+                <p class="advmedia-probe-detail">
+                  <?= $escape($translate('Technical detail:')) ?>
+                  <?= $escape((string) $p['message']) ?>
+                </p>
+              <?php endif; ?>
+            </div>
+          <?php endif; ?>
+          <?php // The "why" folded away beneath the control: the toggle is the thing;
+                // most admins do not need the rationale, and those who do can open it. ?>
+          <details class="advmedia-explain">
+            <summary><?= $escape($translate('More about media URL proxying')) ?></summary>
+            <p>
+              <?= $escape($translate('Normally media URLs point straight at your file store (for example an S3 bucket). With this on, they point at this site instead, and requests are redirected onward.')) ?>
+            </p>
+            <p>
+              <strong><?= $escape($translate('Only turn this on if you want to control bot and harvester access to your media with network-level rules')) ?></strong>
+              <?= $escape($translate('— rate limits, user-agent filtering, or a WAF. Routing media through this site gives those rules a stable path to match on. If you have no such rules, this setting gains you nothing.')) ?>
+            </p>
+            <p>
+              <?= $escape($translate('It does not work everywhere: the server has to be able to reach its own address. That is checked before it is switched on. Even where it works, each internal read of a media file makes an extra round trip, so it is not free.')) ?>
+              <?= $escape($translate('Download buttons do not need this setting — they work either way.')) ?>
+            </p>
+          </details>
+
+          <?php // ── How media bytes are served ── detected on load. X-Accel is the
+                // zero-copy path (nginx proxies straight from the bucket); streaming
+                // is the universal fallback (bytes through PHP). The snippet that
+                // enables X-Accel lives in the accordion so it is there when wanted
+                // but out of the way otherwise. ?>
+          <?php if (!empty($proxy['xaccel'])): $x = $proxy['xaccel'];
+            $isXAccel = ($proxy['serveMode'] === 'xaccel');
+            $s3Host = (string) parse_url($x['s3Endpoint'], PHP_URL_HOST);
+            $snippet = <<<NGINX
+# Advanced Media — zero-copy media serving via X-Accel-Redirect.
+# Paste into the server {} block of the nginx that fronts this site, then reload.
+
+# Serves media: nginx proxies the object straight from the bucket.
+location {$x['prefix']} {
+    internal;
+    proxy_pass {$x['s3Endpoint']}/{$x['bucket']}/;
+    proxy_set_header Host {$s3Host};
+    proxy_set_header Authorization "";
+    proxy_ssl_server_name on;
+    proxy_hide_header x-amz-id-2;
+    proxy_hide_header x-amz-request-id;
+    # The bucket's own Content-Type is not authoritative: objects written by bulk
+    # loads or older tooling can carry application/octet-stream for a perfectly
+    # good PDF, and Chrome DOWNLOADS an octet-stream subresource, so an embedded
+    # PDF reader starts saving the file on page load. Hiding it here lets the
+    # Content-Type the module sets (from Omeka's own media record) reach the
+    # client. Without this line nginx keeps the bucket's value and the module's
+    # is discarded.
+    proxy_hide_header Content-Type;
+}
+
+# Lets the module detect that this snippet is installed.
+location = {$x['checkPath']} {
+    internal;
+    default_type text/plain;
+    return 200 "{$x['token']}";
+}
+NGINX;
+          ?>
+            <p class="advmedia-desc advmedia-serve-status">
+              <strong><?= $escape($translate('Serving:')) ?></strong>
+              <?php if ($isXAccel): ?>
+                <?= $escape($translate('zero-copy via nginx X-Accel-Redirect (detected and active).')) ?>
+              <?php else: ?>
+                <?= $escape($translate('streaming media through PHP. This works everywhere but occupies a worker per transfer; install the nginx snippet below for zero-copy serving.')) ?>
+              <?php endif; ?>
+            </p>
+            <details class="advmedia-explain">
+              <summary><?= $escape($translate('nginx snippet for zero-copy serving')) ?></summary>
+              <p>
+                <?= $escape($translate('With this installed, nginx serves media straight from your bucket, so PHP never touches the bytes and the bucket URL is never exposed to the client. The module detects it automatically — no setting to change.')) ?>
+                <?= $escape($translate('Without it, media still works; it just streams through PHP. There is no equivalent for a pure Apache stack — see the module README.')) ?>
+              </p>
+              <pre class="advmedia-snippet"><?= $escape($snippet) ?></pre>
+            </details>
+          <?php endif; ?>
+        <?php endif; ?>
+      </section>
+    <?php endif; ?>
+
+    <?php // ---- Download threshold (both scopes; follows the '' = inherit convention) ---- ?>
+    <?php $threshold = $options['threshold']; ?>
+    <?php $thresholdInheriting = ($threshold['stored'] === '' || $threshold['stored'] === null); ?>
+    <section class="advmedia-setting">
+      <h4><?= $escape($translate('Download threshold')) ?></h4>
+      <?= $escape($translate('Some items have multiple resources of the same type. In large numbers they can create too many download buttons in the Download block. Use this threshold to set the maximum number of download buttons for a single media type that should appear.')) ?>
+      <p>
+        <label>
+          <?= $escape($translate('Suppress downloads above ')) ?>
+          <input type="number" min="0" step="1"
+                 name="<?= $escape($threshold['key']) ?>"
+                 value="<?= $escape((string) $threshold['stored']) ?>"
+                 placeholder="<?= $escapeAttr(sprintf($translate('%s (inherited)'), $threshold['inherited'])) ?>"
+                 size="5">
+          <?= $escape($translate(' files of the same type on one item.')) ?>
+        </label>
+      </p>
+      <p class="advmedia-desc">
+        <?= $escape($translate('Counted per media type, so an item holding 600 page images and one PDF still offers the PDF. Leave blank to inherit; enter 0 for no limit.')) ?>
+        <?php if ($thresholdInheriting): ?>
+          <?= sprintf($escape($translate('Currently inheriting: %s.')),
+                $threshold['inherited'] === 0 ? $escape($translate('no limit')) : (int) $threshold['inherited']) ?>
+        <?php else: ?>
+          <strong><?= $escape($translate('Set here.')) ?></strong>
+        <?php endif; ?>
+      </p>
+    </section>
+
+  </div>
+
+  <?php // ══ SET 2 ── PLAYERS + DOWNLOADS ══ individual media → viewer, and whether
+        // the Downloads block offers it. Two independent decisions about the same
+        // media type, so they share a table rather than repeating the row list. ?>
+  <h3><?= $escape($translate('Media players and downloads')) ?></h3>
+  <div class="advmedia-note">
+    <?= $escape($translate('How a single media file is displayed when it is not part of a structure below, and whether the Downloads block offers it as a file. Rows are the media types actually present in this installation.')) ?>
+    <strong><?= $escape($translate('The two columns are independent:')) ?></strong>
+    <?= $escape($translate('a media type can show a working viewer and still be offered as a download.')) ?>
+    <?= $escape($translate('Downloads appear only where the Downloads block has been added to the item page.')) ?>
+  </div>
+  <div class="advmedia-band">
+    <table>
+      <tr class="advmedia-head">
+        <th class="advmedia-key"><?= $escape($translate('Media type')) ?></th>
+        <th><?= $escape($translate('Player')) ?></th>
+        <th><?= $escape($translate('Include in Downloads block')) ?></th>
+      </tr>
+      <?php foreach ($options['players'] as $p): ?>
+        <tr>
+          <td class="advmedia-key">
+            <strong><?= $escape($translate($p['label'])) ?></strong>
+            <?php if ($p['count'] !== null): ?>
+              <span class="advmedia-count">— <?= sprintf($translate('%d media'), $p['count']) ?></span>
+            <?php endif; ?>
+            <?php if ($p['warning']): ?>
+              <p class="advmedia-desc"><em><?= $escape($translate($p['warning'])) ?></em></p>
+            <?php endif; ?>
+          </td>
+          <td>
+            <?= $row($keys['player'], $p['key'], $p['choices'],
+                  $stored[$keys['player']][$p['key']] ?? null,
+                  $inherited[$keys['player']][$p['key']] ?? null) ?>
+          </td>
+          <td>
+            <?= $row($keys['download'], $p['key'], $options['downloadChoices'],
+                  $stored[$keys['download']][$p['key']] ?? null,
+                  $inherited[$keys['download']][$p['key']] ?? null) ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+    </table>
+  </div>
+
+  <?php // ══ SET 3 ── RESOURCE TEMPLATE OVERRIDES ══ the exception mechanism, for
+        // shapes a curator deliberately named. ?>
+  <h3><?= $escape($translate('Resource template overrides')) ?></h3>
+  <div class="advmedia-note">
+    <?= $escape($translate('Override the structure defaults for items built on a particular resource template. A template is a curatorial choice about the shape of an item, so mapping one here adds nothing to any record.')) ?>
+    <?= $escape($translate('An override only applies where the chosen viewer can render what the item actually holds; otherwise the structure defaults below still apply.')) ?>
+  </div>
+  <div class="advmedia-band">
+    <?php if (!$options['templates']): ?>
+      <p><?= $escape($translate('No resource templates are in use.')) ?></p>
+    <?php else: ?>
+      <table>
+        <?php foreach ($options['templates'] as $t): ?>
+          <tr>
+            <td class="advmedia-key">
+              <strong><?= $escape($t['label']) ?></strong>
+              <span class="advmedia-count">— <?= sprintf($translate('%d items'), $t['count']) ?></span>
+            </td>
+            <td>
+              <?= $row($keys['selector'], $t['key'], $options['allCompounds'],
+                    $stored[$keys['selector']][$t['key']] ?? null,
+                    $inherited[$keys['selector']][$t['key']] ?? null,
+                    'No override — use the structure defaults' /* @translate */) ?>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+      </table>
+    <?php endif; ?>
+  </div>
+
+  <?php // ══ SET 4 ── MEDIA STRUCTURES ══ the broad rendering policy: patterns
+        // detected in an item's media, and how each is displayed wherever it occurs. ?>
+  <h3><?= $escape($translate('Media structures')) ?></h3>
+  <div class="advmedia-note">
+    <?= $escape($translate('Structures are patterns detected in an item’s media. Each row chooses how that pattern is displayed, wherever it occurs.')) ?>
+    <strong><?= $escape($translate('A row applies to every item matching the pattern — not to a list of items.')) ?></strong>
+    <?= $escape($translate('An item can match several structures and show several viewers. Choose “None” to stop grouping a pattern and show its media individually.')) ?>
+  </div>
+  <div class="advmedia-band">
+    <table>
+      <?php foreach ($options['structures'] as $s): ?>
+        <tr>
+          <td class="advmedia-key">
+            <strong><?= $escape($translate($s['label'])) ?></strong>
+            <p class="advmedia-desc"><?= $escape($translate($s['description'])) ?></p>
+            <?php if ($s['requirements']): ?>
+              <details>
+                <summary><?= $escape($translate('What this looks for')) ?></summary>
+                <ul>
+                  <?php foreach ($s['requirements'] as $req): ?>
+                    <li><?= $escape($translate($req)) ?></li>
+                  <?php endforeach; ?>
+                </ul>
+              </details>
+            <?php endif; ?>
+          </td>
+          <td>
+            <?= $row($keys['structure'], $s['key'], $s['choices'],
+                  $stored[$keys['structure']][$s['key']] ?? null,
+                  $inherited[$keys['structure']][$s['key']] ?? null) ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+    </table>
+  </div>
+
+</div>

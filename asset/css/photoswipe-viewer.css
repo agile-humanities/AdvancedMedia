@@ -1,0 +1,91 @@
+/**
+ * Presentation for a single image opening into PhotoSwipe.
+ *
+ * Only the in-page part is styled here; the viewer itself is PhotoSwipe's own
+ * stylesheet, deliberately left alone so upgrades do not fight local overrides.
+ */
+.advancedmedia-image {
+    margin-block: 1rem;
+    text-align: center;
+}
+
+.advancedmedia-image-link {
+    display: inline-block;
+    max-width: 100%;
+    line-height: 0; /* no descender gap under the image */
+    cursor: zoom-in;
+}
+
+.advancedmedia-image-thumb {
+    max-width: 100%;
+    height: auto;
+}
+
+/* A visible focus ring matters more than usual here: the link is the whole
+   control, and for a keyboard user it is the only way in. */
+.advancedmedia-image-link:focus-visible {
+    outline: 3px solid currentColor;
+    outline-offset: 3px;
+}
+
+/**
+ * ⚠️ DEFEND PHOTOSWIPE'S CHROME FROM THE THEME. DO NOT REMOVE.
+ *
+ * Omeka themes style bare <button> elements, and PhotoSwipe's controls are bare
+ * buttons inside an element it appends to <body> — so they inherit whatever the
+ * theme does to buttons. On pitts3 that is a solid #F2A900 block with padding, which
+ * turns an elegant dark viewer into a row of gold slabs. Resetting here rather than
+ * editing the vendored stylesheet keeps upgrades clean.
+ *
+ * Specificity (.pswp .pswp__button) beats the theme's element selectors without
+ * resorting to !important.
+ */
+.pswp .pswp__button,
+.pswp .pswp__button:hover,
+.pswp .pswp__button:focus,
+.pswp .pswp__button:active {
+    background: none;
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+    min-height: 0;
+    font: inherit;
+    color: var(--pswp-icon-color, #fff);
+    text-transform: none;
+    letter-spacing: normal;
+
+    /* Restore the geometry PhotoSwipe declares for itself. Clearing the theme's
+       padding is not enough: the theme also sets width/height on buttons and wins
+       on load order, which collapses every control to zero width — present in the
+       DOM, invisible on screen. These values are PhotoSwipe's own. */
+    position: relative;
+    display: block;
+    width: 50px;
+    height: 60px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.pswp .pswp__button--arrow {
+    width: 75px;
+    height: 100px;
+}
+
+.pswp .pswp__button--close {
+    margin-right: 6px;
+}
+
+/* The theme also sets a transform/scale on button hover in places; PhotoSwipe
+   conveys hover through opacity alone. */
+.pswp .pswp__button:hover {
+    transform: none;
+    opacity: 1;
+}
+
+.pswp .pswp__icn {
+    fill: var(--pswp-icon-color, #fff);
+}

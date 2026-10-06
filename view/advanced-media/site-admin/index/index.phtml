@@ -1,0 +1,20 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\SiteRepresentation $site
+ * @var array $options
+ */
+$translate = $this->plugin('translate');
+$this->htmlElement('body')->appendAttribute('class', 'advanced-media site');
+echo $this->pageTitle($translate('Media'), 1, $site->title());
+?>
+
+<?= $this->messages() ?>
+
+<form method="post" action="<?= $this->escapeHtml($this->url('admin/site/slug/advanced-media', ['site-slug' => $site->slug()], true)) ?>">
+  <div id="page-actions">
+    <button type="submit"><?= $this->escapeHtml($translate('Save')) ?></button>
+  </div>
+
+  <?= $this->partial('common/config/advanced-media-config', ['options' => $options]) ?>
+</form>

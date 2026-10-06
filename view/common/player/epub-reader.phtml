@@ -1,0 +1,37 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var string $src Absolute URL of the .epub file
+ * @var \Omeka\Api\Representation\MediaRepresentation $media
+ *
+ * The fallback paragraph is rendered VISIBLE and the reader chrome hidden. The
+ * script inverts that once it has a book open, so a visitor without JavaScript —
+ * or one whose browser cannot fetch the file — is left with a working download
+ * link rather than an empty box. Do not "fix" this by hiding the fallback in CSS.
+ */
+$escape = $this->plugin('escapeHtml');
+$escapeAttr = $this->plugin('escapeHtmlAttr');
+$translate = $this->plugin('translate');
+?>
+<div class="advancedmedia-epub" data-epub-src="<?= $escapeAttr($src) ?>">
+    <div class="advancedmedia-epub-toolbar" hidden>
+        <button type="button" class="advancedmedia-epub-toc-toggle" aria-expanded="false">
+            <?= $escape($translate('Contents')) ?>
+        </button>
+        <div class="advancedmedia-epub-pager">
+            <button type="button" class="advancedmedia-epub-prev" aria-label="<?= $escapeAttr($translate('Previous page')) ?>">&#8249;</button>
+            <button type="button" class="advancedmedia-epub-next" aria-label="<?= $escapeAttr($translate('Next page')) ?>">&#8250;</button>
+        </div>
+    </div>
+
+    <div class="advancedmedia-epub-body" hidden>
+        <nav class="advancedmedia-epub-toc" aria-label="<?= $escapeAttr($translate('Table of contents')) ?>" hidden></nav>
+        <div class="advancedmedia-epub-viewport"></div>
+    </div>
+
+    <p class="advancedmedia-epub-status" role="status" hidden></p>
+
+    <p class="advancedmedia-epub-fallback">
+        <a href="<?= $escapeAttr($src) ?>"><?= $escape($translate('Download the ePub')) ?></a>
+    </p>
+</div>

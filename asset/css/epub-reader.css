@@ -1,0 +1,162 @@
+/**
+ * ePub reader.
+ *
+ * Deliberately unopinionated: sizes and colours come from custom properties so a
+ * theme can restyle the reader without overriding rules. Class names mirror
+ * .advancedmedia-pdf so the two readers can be styled as a pair.
+ */
+.advancedmedia-epub {
+    --advancedmedia-epub-height: 70vh;
+    --advancedmedia-epub-min-height: 420px;
+    --advancedmedia-epub-toc-width: 16rem;
+    --advancedmedia-epub-border: 1px solid rgba(0, 0, 0, .18);
+    --advancedmedia-epub-surface: #fff;
+
+    margin-block: 1rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.advancedmedia-epub-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .35rem .5rem;
+    border: var(--advancedmedia-epub-border);
+    border-bottom: 0;
+}
+
+.advancedmedia-epub-toolbar button {
+    cursor: pointer;
+    background: transparent;
+    border: var(--advancedmedia-epub-border);
+    border-radius: 3px;
+    padding: .25rem .6rem;
+    font: inherit;
+    line-height: 1.4;
+}
+
+.advancedmedia-epub-pager {
+    display: flex;
+    gap: .25rem;
+}
+
+.advancedmedia-epub-pager button {
+    min-width: 2.25rem;
+    font-size: 1.15rem;
+}
+
+.advancedmedia-epub-body {
+    display: flex;
+    align-items: stretch;
+    height: var(--advancedmedia-epub-height);
+    min-height: var(--advancedmedia-epub-min-height);
+    border: var(--advancedmedia-epub-border);
+    background: var(--advancedmedia-epub-surface);
+    /* See the note on .epub-container below: nothing in here may be allowed to
+       widen an ancestor. */
+    min-width: 0;
+    max-width: 100%;
+}
+
+.advancedmedia-epub-toc {
+    flex: 0 0 var(--advancedmedia-epub-toc-width);
+    overflow-y: auto;
+    border-right: var(--advancedmedia-epub-border);
+    padding: .5rem;
+}
+
+.advancedmedia-epub-toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.advancedmedia-epub-toc li + li {
+    margin-top: .2rem;
+}
+
+.advancedmedia-epub-toc a {
+    display: block;
+    padding: .2rem .3rem;
+    text-decoration: none;
+    font-size: .9em;
+}
+
+.advancedmedia-epub-toc a:hover,
+.advancedmedia-epub-toc a:focus {
+    text-decoration: underline;
+}
+
+/* epub.js measures this element to paginate, so it must have a real size before
+   the book is displayed — hence a flex child that fills, not an auto height.
+   flex-basis 0 (not auto) so the book's own width never feeds back into the
+   layout. */
+.advancedmedia-epub-viewport {
+    position: relative;
+    flex: 1 1 0%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+/* ⚠️ TAKE epub.js's CONTAINER OUT OF FLOW. DO NOT REMOVE.
+ *
+ * In paginated mode epub.js lays the whole section out as CSS multi-columns and
+ * sizes its container to the FULL width of every column at once — measured here at
+ * 294,084px for one book of Paradise Lost. In normal flow that width propagates
+ * upward: flex and grid items default to min-width:auto, so the track cannot shrink
+ * below its content, and the reader, the item column and the page itself stretch to
+ * a quarter of a million pixels. The symptom is a blank reader beside a page that
+ * scrolls sideways for ever, which looks nothing like a CSS bug.
+ *
+ * Absolute positioning ends it at this boundary: the container fills the viewport,
+ * the viewport clips it, and its content size stops propagating. The !important is
+ * required because epub.js writes width/height inline. */
+.advancedmedia-epub-viewport > .epub-container {
+    position: absolute !important;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto !important;
+    height: auto !important;
+}
+
+.advancedmedia-epub-status {
+    margin: .5rem 0;
+    font-style: normal;
+    opacity: .8;
+}
+
+/* Once the reader works the link is still offered, just no longer the main event. */
+.advancedmedia-epub-fallback--secondary {
+    font-size: .9em;
+    opacity: .8;
+}
+
+/* The table of contents costs too much width on a phone; it opens over the text
+   instead of beside it. */
+@media (max-width: 600px) {
+    .advancedmedia-epub {
+        --advancedmedia-epub-toc-width: 100%;
+    }
+
+    .advancedmedia-epub-toc {
+        border-right: 0;
+        border-bottom: var(--advancedmedia-epub-border);
+    }
+
+    .advancedmedia-epub-body:has(.advancedmedia-epub-toc:not([hidden])) .advancedmedia-epub-viewport {
+        display: none;
+    }
+
+    .advancedmedia-epub-body {
+        flex-wrap: wrap;
+    }
+}
+
+[hidden] {
+    display: none !important;
+}

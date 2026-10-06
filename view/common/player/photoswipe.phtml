@@ -1,0 +1,32 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var string $fullUrl    Full-size image (what PhotoSwipe opens)
+ * @var string $displayUrl Derivative shown in the page
+ * @var int|null $width    Full image dimensions, when known
+ * @var int|null $height
+ * @var string $label      Alt text / caption
+ *
+ * The anchor is the whole feature when JavaScript is absent: it opens the full
+ * image. PhotoSwipe only intercepts the click. Do not replace it with a <button>.
+ */
+$escape = $this->plugin('escapeHtml');
+$escapeAttr = $this->plugin('escapeHtmlAttr');
+$translate = $this->plugin('translate');
+?>
+<div class="advancedmedia-image" data-photoswipe>
+    <a class="advancedmedia-image-link"
+       href="<?= $escapeAttr($fullUrl) ?>"
+       target="_blank"
+       rel="noopener"
+        <?php if ($width && $height): ?>
+       data-pswp-width="<?= (int) $width ?>"
+       data-pswp-height="<?= (int) $height ?>"
+        <?php endif; ?>
+       aria-label="<?= $escapeAttr($translate('Open the full-size image')) ?>">
+        <img class="advancedmedia-image-thumb"
+             src="<?= $escapeAttr($displayUrl) ?>"
+             alt="<?= $escapeAttr($label) ?>"
+             loading="lazy">
+    </a>
+</div>

@@ -1,0 +1,111 @@
+<?php
+/**
+ * The Downloads block.
+ *
+ * DOM and class names deliberately mirror the theme's own
+ * `agile-item/download-item-block.phtml` (.download / .download--item /
+ * .download--metadata / .icon-left-download / .icon-left-metadata), so pitts3's
+ * existing styling and icon SVGs apply with no new CSS. The theme lays .download
+ * out as a flex row; with the per-type opt-in and the threshold keeping counts
+ * small, several buttons sit on one line as the single button does today.
+ *
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\ItemRepresentation $item
+ * @var \Omeka\Api\Representation\MediaRepresentation[] $media Already filtered by
+ *      DownloadResolver: opted-in types only, non-empty files, threshold applied,
+ *      in attachment order.
+ */
+
+use AdvancedMedia\Media\MediaTypeLabel;
+
+$escape = $this->plugin('escapeHtml');
+$escapeAttr = $this->plugin('escapeHtmlAttr');
+$translate = $this->plugin('translate');
+
+$metadataFilename = 'metadata-' . urlencode(strtolower(str_replace(' ', '_', (string) $item->title()))) . '.json';
+
+// Resolve URLs once, up front, so the per-type counts below reflect only the
+// buttons that will actually render — not media the resolver passed but which
+// yield no download URL (there should be none, but the count must be honest).
+$rows = [];
+$typeTotals = [];
+foreach ($media as $m) {
+    $url = $this->advancedMediaDownloadUrl($m);
+    if (!$url) {
+        continue;
+    }
+    $type = (string) $m->mediaType();
+    $typeTotals[$type] = ($typeTotals[$type] ?? 0) + 1;
+    $rows[] = ['media' => $m, 'url' => $url, 'type' => $type];
+}
+
+// Running per-type counter, consumed only when a type has more than one file.
+$typeSeen = [];
+?>
+<?php if ($rows): ?>
+<div class="download advancedmedia-downloads">
+
+  <?php foreach ($rows as $row): ?>
+    <?php
+    $m = $row['media'];
+    $url = $row['url'];
+
+    // "Download PDF (1.2 MB)". The size is omitted rather than shown as 0 when
+    // it is unknown — every record in this install has one, but a fresh ingest
+    // or a hand-edited row may not.
+    $name = $translate(MediaTypeLabel::name($m));
+
+    // Number the label only when the item has MORE THAN ONE downloadable file of
+    // this type — "Download TIFF Image 1", "…2" — so a lone PDF stays "Download
+    // PDF" rather than the noisy "Download PDF 1". The counter increments per
+    // type in attachment order, matching the order the buttons appear.
+    $typeSeen[$row['type']] = ($typeSeen[$row['type']] ?? 0) + 1;
+    if ($typeTotals[$row['type']] > 1) {
+        $name = sprintf($translate('%s %d'), $name, $typeSeen[$row['type']]);
+    }
+
+    $size = MediaTypeLabel::size($m);
+    $label = $size !== ''
+        ? sprintf($translate('Download %s (%s)'), $name, $size)
+        : sprintf($translate('Download %s'), $name);
+
+    // Belt and braces. With proxying on, the attachment disposition comes from
+    // the presigned S3 response and this attribute is redundant; on a local
+    // install it is what does the work. It is inert cross-origin.
+    $filename = basename((string) $m->filename());
+
+    // The filename, NOT displayTitle(): media here are commonly sideloaded, so
+    // displayTitle() falls back to `source`, which is a full S3 URL. A tooltip
+    // reading "Download https://pittspublic.s3-us-west-2.amazonaws.com/..." is
+    // worse than no tooltip. The filename is the one thing the label omits.
+    $title = $filename !== '' ? $filename : $name;
+    ?>
+    <div class="download--item">
+      <?php // escapeHtml, not escapeHtmlAttr, for the same reason the config
+            // template gives: escapeHtmlAttr hex-encodes every non-alphanumeric
+            // character, so a URL becomes http&#x3A;&#x2F;&#x2F;… — valid, and
+            // browsers decode it, but unreadable in view-source and undebuggable.
+            // These attributes are double-quoted and escapeHtml escapes quotes. ?>
+      <a class="icon-left-download"
+         href="<?= $escape($url) ?>"
+         title="<?= $escape($title) ?>"
+         <?= $filename !== '' ? 'download="' . $escape($filename) . '"' : '' ?>>
+        <?= $escape($label) ?>
+      </a>
+    </div>
+  <?php endforeach; ?>
+
+  <?php // Same-origin, so this one has always worked — unlike the media links. ?>
+  <div class="download--metadata">
+    <a class="icon-left-metadata"
+       title="<?= $escape($translate('Download metadata')) ?>"
+       target="_blank"
+       type="application/json"
+       href="<?= $escape($item->apiUrl()) ?>"
+       download="<?= $escape($metadataFilename) ?>">
+      <?= $escape($translate('Download Metadata')) ?>
+    </a>
+  </div>
+
+</div>
+<?php endif; ?>

@@ -1,0 +1,18 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var string $recordingHtml  The audio/video player(s).
+ * @var string $imageHtml      The accompanying image(s), already rendered.
+ *
+ * Recording first, images beneath: the recording is the item, the images accompany
+ * it. Attachment order is deliberately NOT preserved within the group — on these
+ * items the image is usually attached last, and showing it above the player would
+ * bury the thing the page is actually about.
+ */
+?>
+<div class="advancedmedia-compound av-with-images">
+  <?= $recordingHtml ?>
+  <?php if (trim($imageHtml) !== ''): ?>
+    <div class="advancedmedia-av-images"><?= $imageHtml ?></div>
+  <?php endif; ?>
+</div>

@@ -1,0 +1,14 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var string $transcriptId
+ * @var string $segmentsHtml  Pre-built, escaped <span class="vtt-segment"> markup.
+ * @var string $heading
+ */
+?>
+<div id="<?= $this->escapeHtmlAttr($transcriptId) ?>" class="media-container vtt advancedmedia-transcript" data-type="vtt">
+  <?php if ($heading !== ''): ?>
+    <h3><?= $this->escapeHtml($heading) ?></h3>
+  <?php endif; ?>
+  <p><?= $segmentsHtml ?></p>
+</div>

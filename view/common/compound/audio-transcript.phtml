@@ -1,0 +1,16 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var string $audioHtml
+ * @var string $transcriptHtml
+ * @var string|null $extraHtml  Images the structure attached to this pair, if any.
+ */
+$extraHtml = $extraHtml ?? '';
+?>
+<div class="advancedmedia-compound audio-transcript has-vtt">
+  <?= $audioHtml ?>
+  <?= $transcriptHtml ?>
+  <?php if (trim($extraHtml) !== ''): ?>
+    <div class="advancedmedia-av-images"><?= $extraHtml ?></div>
+  <?php endif; ?>
+</div>
