@@ -2,7 +2,13 @@
 
 **Status:** Implemented 2026-09-14 (uncommitted). All decisions settled with Bill 2026-09-14, including §5.
 **Depends on:** [`architecture.md`](architecture.md) §1.4 (availability gating), §4.3 (adapters over viewer modules); [`STATUS.md`](STATUS.md) §4.4 (delegator precedent).
-**Hard constraint:** Mirador is pinned at 3.4.9 and its vendored bundle must not be rebuilt (3.4.17's rebuilt bundle blanks the viewer). Everything here works against the bundle as shipped.
+**Update (1.0.0, 2026-10-27):** from the Mirador module 3.4.17, Mirador 4 is the default viewer. It is an ES module
+that sets no `window.Mirador`, so `js/mirador-page-links-4.mjs` imports it through the page's import map and hands
+`setCanvas`, `getCanvases` and `getCanvasIndex` to the same script (Mirador 4 exports them at the top level). Mirador 4
+builds its viewers on the window `load` event, after both scripts have run, so `?page=N` still lands in the config
+first. The 3.4.9 notes below remain accurate for Mirador 3.
+
+**Hard constraint (Mirador 3):** Mirador is pinned at 3.4.9 and its vendored bundle must not be rebuilt (3.4.17's rebuilt bundle blanks the viewer). Everything here works against the bundle as shipped.
 
 > Deep-link into a Mirador viewer at a given page, and keep the address bar in step as the visitor pages, so copying the URL *is* the bookmark.
 

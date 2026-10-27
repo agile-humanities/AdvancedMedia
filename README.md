@@ -1,43 +1,54 @@
 # Advanced Media (Omeka S module)
 
-## Who this module is for?
-This module is designed for Omeka-S administrators who want more control over media presentation. It is also for Omeka instances that use AWS S3 for media storage, providing some advanced support. This module is also for Omeka developers, providing an API to support new types of media viewers.
+## Who is this module for?
+This module is designed for Omeka S administrators who want more control over media presentation. It is also for Omeka installations that store media on AWS S3, and for Omeka developers, through an API for new types of media viewers.
 
 ## Who made this module?
 This module was developed by Bill Kennedy at [Agile Humanities Agency](https://agilehumanities.ca), with support from the [Pitts Theological Library](https://digital.pitts.emory.edu) at Emory University.
 
 ## What does this module do?
-Advanced Media allows you to configure media players based on an object’s media (MIME) type. It also supports situations where a viewer relies on multiple rather than single media attachments by introducing the concept of a Media Structure. A media structure looks for patterns in an item’s set of attached media and allows you to present both in a common viewer. For instance an audio file and a VTT transcript would be played together in a single audio player.
+Advanced Media allows you to configure media players based on an object’s media (MIME) type. It also supports situations where a viewer relies on multiple rather than single media attachments by introducing the concept of a Media Structure. A media structure looks for patterns in an item’s attached media and lets you present them together in a single viewer. For instance, an audio file and a VTT transcript are played together in one audio player.
 
-The Advanced Media module allows you to configure players both globally and per individual theme.
+Players and structures can be configured globally and for each site.
 
 The module provides new media players:
 
 - a “circular” audio player and synchronized transcript viewer;
 - Interactive Resource support (for embedded HTML widgets);
+- an in-page PDF reader (the browser’s own);
 - the PhotoSwipe library for images;
-- the ePub.js library for ePubs;
-- support for OHMs interviews (to supplement the OHMs module);
+- the epub.js library for ePubs;
+- OHMS oral history interviews (with the OHMS Embed module);
 - additional HTML5 support for video;
 - additional Mirador support to supplement the Mirador module, allowing you to bookmark URLs for direct access to interior pages (e.g. ?page=6);
-- Universal Viewer support based on Media Structures (to supplement the Mirador, Universal, and IIIF Module).
+- Universal Viewer support based on media structures (with the Universal Viewer and IIIF Server modules).
 
 The module also provides some advanced capabilities, including:
 
+- a **Downloads** block offering per-media-type download links, with editable labels and file sizes;
+- a media audit on the configuration page that lists broken media files (hidden system files, empty files, images without thumbnails, undetected types);
 - an API for developers to create new media viewers and media structures in their own modules; and
-- additional AWS S3 support, providing the option to present remote S3 media URLs as if they were local ones, creating a “pinch point” for managing bot access. 
+- additional AWS S3 support, providing the option to present remote S3 media URLs as if they were local ones, creating a “pinch point” for managing bot access.
 
 ## Requirements
 
 Omeka S `^4.0.0`. **No hard dependency on any viewer module** — viewer adapters
-(Mirador, Universal Viewer) self-disable when their module is absent.
+(Mirador, Universal Viewer) self-disable when their module is absent. Optional modules:
+
+- [Mirador](https://github.com/Daniel-KM/Omeka-S-module-Mirador) and
+  [IIIF Server](https://github.com/Daniel-KM/Omeka-S-module-IiifServer) for image sets (Mirador 3, or Mirador 4 from
+  the Mirador module 3.4.17);
+- [Universal Viewer](https://github.com/Daniel-KM/Omeka-S-module-UniversalViewer) for paged documents;
+- OHMS Embed for OHMS interviews;
+- [Amazon S3](https://github.com/Daniel-KM/Omeka-S-module-AmazonS3) for media URL proxying.
 
 ## Try it
 
 1. Enable **Advanced Media** in Admin → Modules.
 2. In a site’s **Theme → Resource pages**, add the **Advanced media** block to the
    item page (or replace **Media embeds** with it).
-3. View an item a media attachment — it renders through the configured player, falling back to the default player if none were set.
+3. View an item with a media attachment — it renders through the configured player, falling back to Omeka’s own
+   rendering when none is configured.
 
 ## Additional Details
 
@@ -56,7 +67,8 @@ keeps the URL in step as the visitor pages:
   URL alone; an invalid `viewer` ignores the link.
 
 No settings. Installed as a delegator on the Mirador module's `mirador` view helper, so
-it is inert without that module. Design, and the Mirador 3.4.9 internals it relies on:
+it is inert without that module. Works with Mirador 3 and with Mirador 4 (the default from the Mirador module
+3.4.17). Design, and the Mirador internals it relies on:
 [`docs/mirador-page-links.md`](docs/mirador-page-links.md).
 
 ### Single images: the PhotoSwipe player
@@ -106,11 +118,11 @@ Three things worth knowing:
 - **Two or more images**, not one. A single image beside a PDF is a cover or
   representative thumbnail for a document whose real content is the PDF, so
   suppressing it there would hide the item's substance. Those items stay with the
-  `PDFs` row.
+  `A PDF document` row.
 - **Only the PDF is claimed.** The images remain with the image structures, so the
   gallery keeps whatever the `Two or more images` row is set to. Gallery
   configuration is never split across two rows.
-- **The shipped default is `identity`**, i.e. today's behaviour — the PDF renders.
+- **The shipped default is `None — Individual media`**, i.e. today's behaviour — the PDF renders.
   Suppression is a presentation choice a site opts into, not a default.
 
 `Do not display` is a compound like any other and supports every structure, so any
@@ -139,7 +151,7 @@ page images stay with the image structures and their viewer. An item can
 therefore show an image viewer and a reader side by side, and no item ever ends
 up with two whole-item viewers competing over it.
 
-The structure ships mapped to `identity` ("None — Individual media"), which
+The structure ships mapped to "None — Individual media", which
 renders each claimed ePub through its resolved player. That mapping is what makes
 the reader appear even when the ePub is not the item's primary media, since
 structure-claimed media are exempt from the "only display primary and grouped

@@ -4,7 +4,7 @@ All notable changes to Advanced Media are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.0.0] — unreleased
+## [1.0.0] — 2026-10-27
 
 First public release. Advanced Media was developed inside Agile Theme Tools and the Pitts
 digital collections site, and is released here as a standalone module.
@@ -27,7 +27,7 @@ digital collections site, and is released here as a standalone module.
 - **Resource page blocks:** *Advanced media* (an item's media through the composer) and
   *Downloads* (per-media-type download links with editable labels, a count threshold and an optional
   metadata download).
-- **Mirador page links:** `?page=N` deep links and URL write-back for every Mirador viewer.
+- **Mirador page links:** `?page=N` deep links and URL write-back for every Mirador viewer, Mirador 3 and 4.
 - **Duplicate PDF handling:** a PDF on an item that also has an image set is detected as its own
   structure, so it can be shown separately or not displayed.
 - **Media URL proxying** (optional, off by default): serves `/files` through this host with a
@@ -41,3 +41,5 @@ digital collections site, and is released here as a standalone module.
 - Requires Omeka S 4. No viewer module is required: the Mirador and Universal Viewer adapters
   turn themselves off when their module is absent.
 - Licensed under CeCILL v2.1.
+
+[1.0.0]: https://github.com/agile-humanities/AdvancedMedia/releases/tag/1.0.0
