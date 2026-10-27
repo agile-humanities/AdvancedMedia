@@ -1,47 +1,31 @@
 # Advanced Media (Omeka S module)
 
-Configurable, contextual media-viewer selection and compound-object display for Omeka S.
+## Who this module is for?
+This module is designed for Omeka-S administrators who want more control over media presentation. It is also for Omeka instances that use AWS S3 for media storage, providing some advanced support. This module is also for Omeka developers, providing an API to support new types of media viewers.
 
-Replaces the ingest-bound, MIME-blind viewer selection in Omeka core with a
-**display-time** layer: a discoverable **player registry**, a **resolver** that
-maps media → player through a contextual cascade, and (in later stages) a
-**composer** for compound objects (Audio with Transcript, Image Gallery, …).
+## Who made this module?
+This module was developed by Bill Kennedy at [Agile Humanities Agency](https://agilehumanities.ca), with support from the [Pitts Theological Library](https://digital.pitts.emory.edu) at Emory University.
 
-See [`docs/architecture.md`](docs/architecture.md) for the full design and rationale.
+## What does this module do?
+Advanced Media allows you to configure media players based on an object’s media (MIME) type. It also supports situations where a viewer relies on multiple rather than single media attachments by introducing the concept of a Media Structure. A media structure looks for patterns in an item’s set of attached media and allows you to present both in a common viewer. For instance an audio file and a VTT transcript would be played together in a single audio player.
 
-## Status
+The Advanced Media module allows you to configure players both globally and per individual theme.
 
-**Stage (a) — engine.** Implemented:
+The module provides new media players:
 
-- **Player registry** (`advancedmedia_media_players` plugin manager) with players:
-  `core-native`, `download`, `html5-audio`, `html5-video`, `thumbnail-link`.
-- **Resolver** (`AdvancedMedia\Media\PlayerResolver`) — cascade:
-  per-site → global → shipped default → `core-native`; within each tier
-  exact MIME → top-level wildcard → `default`; every candidate validated via
-  `PlayerInterface::supports()`.
-- **View helper** `advancedMediaPlayer($media)` and a resource-page block
-  **“Advanced media”** (items) that renders each media through the resolver.
+- a “circular” audio player and synchronized transcript viewer;
+- Interactive Resource support (for embedded HTML widgets);
+- the PhotoSwipe library for images;
+- the ePub.js library for ePubs;
+- support for OHMs interviews (to supplement the OHMs module);
+- additional HTML5 support for video;
+- additional Mirador support to supplement the Mirador module, allowing you to bookmark URLs for direct access to interior pages (e.g. ?page=6);
+- Universal Viewer support based on Media Structures (to supplement the Mirador, Universal, and IIIF Module).
 
-Shipped default mapping (context `page`): `audio/* → html5-audio`,
-`video/* → html5-video`, everything else `→ core-native`.
+The module also provides some advanced capabilities, including:
 
-**Stage (b) — compounds.** Implemented:
-
-- **Compound registry** (`advancedmedia_compound_types`) + **Composer** — greedy-claim,
-  priority-ordered, groups rendered in first-claimed order, identity fallback.
-- **Compound types:** *Individual media* (identity default) and **Audio with Transcript**
-  (auto-detects audio+VTT pairs and renders a synced player + clickable transcript).
-- **Migrated + cleaned** from AgileThemeTools: VTT parser (`Media\Vtt\VttParser`),
-  `circular-audio` and `transcript` players, and `circular-audio.js`/`.css` — now
-  progressively enhanced (native `<video controls>` works if JS/jQuery is absent) and
-  multi-player-safe.
-- The **Advanced media** block now composes an item's media through the Composer.
-
-### Not yet built (see architecture doc §14)
-
-- (c) Config UI (Tab 2 players, Tab 1 class→compound) + Mirador/UV adapters
-- (d) Per-resource exception table + editor
-- (e) Theme-settable fallback thumbnails
+- an API for developers to create new media viewers and media structures in their own modules; and
+- additional AWS S3 support, providing the option to present remote S3 media URLs as if they were local ones, creating a “pinch point” for managing bot access. 
 
 ## Requirements
 
@@ -53,10 +37,11 @@ Omeka S `^4.0.0`. **No hard dependency on any viewer module** — viewer adapter
 1. Enable **Advanced Media** in Admin → Modules.
 2. In a site’s **Theme → Resource pages**, add the **Advanced media** block to the
    item page (or replace **Media embeds** with it).
-3. View an item with audio/video media — it renders through the HTML5 players;
-   other media fall through to core rendering.
+3. View an item a media attachment — it renders through the configured player, falling back to the default player if none were set.
 
-## Mirador page links
+## Additional Details
+
+### Mirador page links
 
 Every Mirador viewer — whichever template renders it — accepts a page in the URL and
 keeps the URL in step as the visitor pages:
@@ -74,7 +59,7 @@ No settings. Installed as a delegator on the Mirador module's `mirador` view hel
 it is inert without that module. Design, and the Mirador 3.4.9 internals it relies on:
 [`docs/mirador-page-links.md`](docs/mirador-page-links.md).
 
-## Single images: the PhotoSwipe player
+### Single images: the PhotoSwipe player
 
 Single-image items can be rendered by **PhotoSwipe** instead of Mirador. The page
 shows the image plainly; clicking it opens an immersive viewer with zoom, keyboard
@@ -104,19 +89,7 @@ intercepts the click. If the full image's dimensions are unknown (no IiifServer 
 have cached them) the script measures the image on first click rather than
 downloading it up front.
 
-**Two things it deliberately does that the library does not:**
-
-- **Registers a fullscreen button.** PhotoSwipe v5 ships zoom and close only; its
-  "fullscreen" documentation means *opening* fullscreen, which is not what someone
-  examining a manuscript wants. Ours toggles the Fullscreen API on the viewer, and
-  logs rather than failing silently when a browser refuses.
-- **Defends the viewer's chrome from the theme.** PhotoSwipe appends its UI to
-  `<body>` as bare `<button>` elements, so they inherit whatever a theme does to
-  buttons — on pitts3 that painted every control as a solid `#F2A900` block and
-  then collapsed them to zero width. `asset/css/photoswipe-viewer.css` restores
-  PhotoSwipe's own geometry. Do not remove those rules when restyling.
-
-## Suppressing a PDF that duplicates an image set
+### Suppressing a PDF that duplicates an image set
 
 Some items hold a digitised document twice: page images for the viewer, and a PDF
 of the same document. By default both are shown — the gallery, then a PDF reader
@@ -128,7 +101,7 @@ The file stays downloadable. The Downloads block walks the item's media directly
 and never goes through the composer, so suppressing display has no effect on it —
 subject as always to the per-type download settings.
 
-Three boundaries worth knowing:
+Three things worth knowing:
 
 - **Two or more images**, not one. A single image beside a PDF is a cover or
   representative thumbnail for a document whose real content is the PDF, so
@@ -145,7 +118,7 @@ row can now be turned off this way. That is deliberately different from the `Non
 *player*, which hides a media type wherever it occurs — mapping `application/pdf`
 to it would also hide every standalone PDF in the install.
 
-## ePub reader
+### ePub reader
 
 Uploaded ePub editions (`application/epub+zip`) are read in the page by the
 **ePub reader** player, which uses this module's own vendored copy of
@@ -192,7 +165,7 @@ downloads it.
   `application/oebps-package+xml`) is out of scope: there is no single medium to
   attach a player to.
 
-## Media URL proxying (optional)
+### Media URL proxying (optional)
 
 When media lives on a remote store (S3), Omeka hands out **bucket URLs**. Turning on
 **Media URL proxying** (module config → *Media URL proxying*) makes every media URL
@@ -219,7 +192,7 @@ the field's placeholder. Then rebuild the IIIF cache and reindex. (Interactive p
 are unaffected; only jobs need the pin.) If you rebuilt before pinning, pin and rebuild
 again — the S3 URLs are frozen in the cache until regenerated.
 
-### How bytes are served
+#### How bytes are served
 
 A `/files/…` request is answered with a direct **200** — never a 302. (A redirect would
 leak the bucket URL, defeating the point, and ImageServer's source fetch rejects any
@@ -233,7 +206,7 @@ first status line that is not `200 OK`, so a redirect breaks tiling.) Two serve 
   with no server config, but it occupies a worker for the transfer. Used automatically
   when X-Accel is not detected.
 
-### Installing the nginx snippet (for zero-copy)
+#### Installing the nginx snippet (for zero-copy)
 
 The config page shows this snippet **with your bucket and endpoint already filled in** —
 copy it from there. Paste it into the `server {}` block of the nginx that fronts this
@@ -271,7 +244,7 @@ location = /__advancedmedia-xaccel-check {
 processed by whichever nginx proxies the response to the client, whatever the app server
 is. Put the snippet in that front nginx.
 
-### Pure Apache (no nginx anywhere)
+#### Pure Apache (no nginx anywhere)
 
 There is **no zero-copy equivalent** for remote (S3) media on a pure Apache stack.
 Apache's `X-Sendfile` (`mod_xsendfile`) can only serve *local* files, so it cannot proxy

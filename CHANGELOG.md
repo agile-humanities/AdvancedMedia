@@ -18,15 +18,18 @@ digital collections site, and is released here as a standalone module.
 - **Players:** core native, download, HTML5 audio, HTML5 video, circular audio, transcript,
   thumbnail link, PDF embed, PhotoSwipe (single images), ePub reader and OHMS.
 - **Compound objects.** A composer that groups an item's media into compounds (individual media,
-  audio with transcript, audio/video with images, OHMS interview, paged document, PhotoSwipe
-  gallery, Mirador and Universal Viewer image sets, interactive resources), with structure
-  detection kept separate from rendering.
-- **Configuration UI** at global and per-site scope: players by media type, compounds by
-  resource class.
+  audio with transcript, audio/video with images, OHMS interview, PhotoSwipe single image,
+  Mirador for image sets, Universal Viewer for paged documents, interactive resources, do not
+  display), with structure detection kept separate from rendering.
+- **Configuration UI** at global scope (module configuration) and per site (the site's *Media*
+  page): players and downloads by media type, a compound for each media structure, and
+  overrides by resource template.
 - **Resource page blocks:** *Advanced media* (an item's media through the composer) and
-  *Downloads* (per-media-type download buttons with a count threshold).
+  *Downloads* (per-media-type download links with editable labels, a count threshold and an optional
+  metadata download).
 - **Mirador page links:** `?page=N` deep links and URL write-back for every Mirador viewer.
-- **Duplicate PDF suppression** for items whose PDF repeats an image set.
+- **Duplicate PDF handling:** a PDF on an item that also has an image set is detected as its own
+  structure, so it can be shown separately or not displayed.
 - **Media URL proxying** (optional, off by default): serves `/files` through this host with a
   direct 200, by nginx `X-Accel-Redirect` or PHP streaming, gated on a reachability probe.
 - **Media audit** on the configuration page: lists media whose file is the problem (hidden
