@@ -35,7 +35,11 @@ class ProxyingAwsS3Factory implements FactoryInterface
 
         $parameters = [
             'key' => $settings->get(AwsS3::OPTION_AWS_KEY),
-            'secretKey' => $settings->get(AwsS3::OPTION_AWS_SECRET_KEY),
+            // As AmazonS3's own factory: the secret key is encrypted at rest from AmazonS3 3.4.5/3.4.6, and the
+            // cipher returns a plain (older) value as it is. Without this, S3 gets the encrypted string as the key.
+            'secretKey' => $services->has('Omeka\Cipher')
+                ? $services->get('Omeka\Cipher')->decrypt((string) $settings->get(AwsS3::OPTION_AWS_SECRET_KEY))
+                : $settings->get(AwsS3::OPTION_AWS_SECRET_KEY),
             'region' => $settings->get(AwsS3::OPTION_REGION, 'us-east-2'),
             'bucket' => $settings->get(AwsS3::OPTION_BUCKET),
             'expiration' => max(0, (int) $settings->get(AwsS3::OPTION_EXPIRATION, 0)),

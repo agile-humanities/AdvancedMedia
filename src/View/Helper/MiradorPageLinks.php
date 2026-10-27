@@ -44,9 +44,26 @@ class MiradorPageLinks extends AbstractHelper
                 'text/javascript',
                 ['defer' => 'defer']
             );
+            // Mirador 4 (Mirador module 3.4.17+, the default there) is an ES module with no global: a module script
+            // passes it to the page-links script. Modules run before the window load event that boots Mirador 4.
+            if ($this->miradorVersion($view) === '4') {
+                $view->headScript()->appendFile(
+                    $view->assetUrl('js/mirador-page-links-4.mjs', 'AdvancedMedia'),
+                    'module'
+                );
+            }
         }
 
         return $html;
+    }
+
+    /** The Mirador major version the stock helper renders with, as it decides it (site setting, module default). */
+    private function miradorVersion($view): string
+    {
+        $isSite = $view->status()->isSiteRequest();
+        $setting = $view->plugin($isSite ? 'siteSetting' : 'setting');
+        $default = method_exists($this->inner, 'renderMirador4') ? '4' : '3';
+        return (string) $setting('mirador_version', $default);
     }
 
     /**

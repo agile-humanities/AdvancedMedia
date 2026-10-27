@@ -41,6 +41,16 @@ class Transcript extends AbstractPlayer
         $this->diagnostics = $diagnostics;
     }
 
+    /** The original's path on disk when the store is Omeka's local store and the file is readable, else null. */
+    private function localPath(MediaRepresentation $media): ?string
+    {
+        if (!($this->store instanceof \Omeka\File\Store\Local) || !$media->hasOriginal() || !$media->filename()) {
+            return null;
+        }
+        $path = $this->store->getLocalPath('original/' . $media->filename());
+        return is_readable($path) ? $path : null;
+    }
+
     /** Public URL → one this server can actually fetch. Safe on any input. */
     private function fetchableUrl(?string $url): ?string
     {
@@ -61,7 +71,9 @@ class Transcript extends AbstractPlayer
         // go through toFetchableUri(): with file proxying on, the public URL may
         // not be reachable from the server at all (see ProxyingAwsS3). Getting
         // this wrong is silent — the transcript just renders empty.
-        $url = $this->fetchableUrl($media->originalUrl());
+        // A local store's file is read from disk: a server fetching its own public URL fails wherever that URL is
+        // not reachable from inside (Docker port mappings, firewalls, bot checks), and the transcript renders empty.
+        $url = $this->localPath($media) ?? $this->fetchableUrl($media->originalUrl());
         if ($url) {
             $parser = new VttParser();
             $loaded = $parser->loadUrl($url);

@@ -7,7 +7,7 @@
  *   ?page=N&viewer=K  canvas N in the K-th viewer (document order); K=1 is never written
  *
  * Loaded (deferred) by the MiradorPageLinks helper decorator, right after the Mirador
- * module's own js/mirador.js. That position is what makes this work without a
+ * module's own js/mirador.js (Mirador 3), or with js/mirador-page-links-4.mjs (Mirador 4, see init()). That position is what makes this work without a
  * Mirador plugin:
  *
  *  - It runs BEFORE Mirador boots. Until jQuery ready, `miradors[id]` is still the
@@ -22,10 +22,16 @@
 (function () {
     'use strict';
 
-    const Mirador = window.Mirador;
+  /**
+   * Mirador 3 is a global (window.Mirador). Mirador 4 is an ES module that never sets one: the companion module
+   * js/mirador-page-links-4.mjs imports it through the page's import map and calls window.advancedMediaPageLinksInit
+   * with it. Both run before Mirador 4 builds its viewers (on window load), so the requested page still lands in the
+   * config first.
+   */
+  function init(Mirador) {
     if (!Mirador || !Mirador.actions || !Mirador.selectors
         || !window.miradors || window.advancedMediaPageLinks) {
-        // No Mirador 3 on this page (or Mirador 2), or already initialised.
+        // No Mirador 3 or 4 on this page (Mirador 2), or already initialised.
         return;
     }
     window.advancedMediaPageLinks = true;
@@ -199,4 +205,15 @@
             track(instance, i + 1, el === target ? page - 1 : null);
         });
     });
+  }
+
+    if (window.Mirador) {
+        init(window.Mirador);
+    } else {
+        window.advancedMediaPageLinksInit = init;
+        if (window.advancedMediaMirador) {
+            // The Mirador 4 module ran first.
+            init(window.advancedMediaMirador);
+        }
+    }
 })();
