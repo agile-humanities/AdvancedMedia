@@ -77,11 +77,23 @@
     margin-top: .2rem;
 }
 
-.advancedmedia-epub-toc a {
+/* Chapters nested under a part or unit heading. */
+.advancedmedia-epub-toc ul ul {
+    margin-top: .2rem;
+    padding-left: .9rem;
+}
+
+.advancedmedia-epub-toc a,
+.advancedmedia-epub-toc span {
     display: block;
     padding: .2rem .3rem;
     text-decoration: none;
     font-size: .9em;
+}
+
+/* Listed in the contents but not present in this file. */
+.advancedmedia-epub-toc .advancedmedia-epub-toc-unavailable {
+    opacity: .55;
 }
 
 .advancedmedia-epub-toc a:hover,
@@ -127,12 +139,6 @@
 .advancedmedia-epub-status {
     margin: .5rem 0;
     font-style: normal;
-    opacity: .8;
-}
-
-/* Once the reader works the link is still offered, just no longer the main event. */
-.advancedmedia-epub-fallback--secondary {
-    font-size: .9em;
     opacity: .8;
 }
 

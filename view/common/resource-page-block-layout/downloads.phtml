@@ -13,7 +13,12 @@
  * @var \Omeka\Api\Representation\ItemRepresentation $item
  * @var \Omeka\Api\Representation\MediaRepresentation[] $media Already filtered by
  *      DownloadResolver: opted-in types only, non-empty files, threshold applied,
- *      in attachment order.
+ *      in attachment order. May be empty.
+ * @var string[] $labelPatterns Custom link text keyed by media id, for the media
+ *      an admin has labelled; absent means the built-in label. May carry {size}.
+ * @var bool $includeMetadata Whether to offer the item's metadata (global/site
+ *      setting, resolved by the block). Independent of $media: an item with no
+ *      downloadable files still offers its metadata when this is on.
  */
 
 use AdvancedMedia\Media\MediaTypeLabel;
@@ -22,27 +27,42 @@ $escape = $this->plugin('escapeHtml');
 $escapeAttr = $this->plugin('escapeHtmlAttr');
 $translate = $this->plugin('translate');
 
+$includeMetadata = !empty($includeMetadata);
+
 $metadataFilename = 'metadata-' . urlencode(strtolower(str_replace(' ', '_', (string) $item->title()))) . '.json';
 
-// Resolve URLs once, up front, so the per-type counts below reflect only the
-// buttons that will actually render — not media the resolver passed but which
-// yield no download URL (there should be none, but the count must be honest).
+$labelPatterns = isset($labelPatterns) && is_array($labelPatterns) ? $labelPatterns : [];
+
+// Resolve URLs and label patterns once, up front, so the counts below reflect
+// only the buttons that will actually render — not media the resolver passed but
+// which yield no download URL (there should be none, but the count must be honest).
+//
+// Every label is a PATTERN, built-in or custom: "Download PDF ({size})" is simply
+// what an unlabelled PDF gets. Files are then counted per pattern, not per media
+// type, because the pattern is what the visitor reads. Two files that read the
+// same need numbering; a .vtt and a .txt that are both text/plain but labelled
+// differently do not.
 $rows = [];
-$typeTotals = [];
+$patternTotals = [];
 foreach ($media as $m) {
     $url = $this->advancedMediaDownloadUrl($m);
     if (!$url) {
         continue;
     }
-    $type = (string) $m->mediaType();
-    $typeTotals[$type] = ($typeTotals[$type] ?? 0) + 1;
-    $rows[] = ['media' => $m, 'url' => $url, 'type' => $type];
+    $name = $translate(MediaTypeLabel::name($m));
+    $pattern = $labelPatterns[$m->id()]
+        ?? sprintf($translate('Download %s (%s)'), $name, MediaTypeLabel::SIZE_TOKEN);
+    $patternTotals[$pattern] = ($patternTotals[$pattern] ?? 0) + 1;
+    $rows[] = ['media' => $m, 'url' => $url, 'name' => $name, 'pattern' => $pattern];
 }
 
-// Running per-type counter, consumed only when a type has more than one file.
-$typeSeen = [];
+// Running per-pattern counter, consumed only when a pattern has more than one file.
+$patternSeen = [];
 ?>
-<?php if ($rows): ?>
+<?php // The block renders when it has ANYTHING to offer. Gating it on $rows alone
+      // is the bug this replaces: the metadata link vanished from every item that
+      // had no downloadable file. ?>
+<?php if ($rows || $includeMetadata): ?>
 <div class="download advancedmedia-downloads">
 
   <?php foreach ($rows as $row): ?>
@@ -50,24 +70,23 @@ $typeSeen = [];
     $m = $row['media'];
     $url = $row['url'];
 
+    $name = $row['name'];
+    $pattern = $row['pattern'];
+
     // "Download PDF (1.2 MB)". The size is omitted rather than shown as 0 when
     // it is unknown — every record in this install has one, but a fresh ingest
     // or a hand-edited row may not.
-    $name = $translate(MediaTypeLabel::name($m));
-
-    // Number the label only when the item has MORE THAN ONE downloadable file of
-    // this type — "Download TIFF Image 1", "…2" — so a lone PDF stays "Download
-    // PDF" rather than the noisy "Download PDF 1". The counter increments per
-    // type in attachment order, matching the order the buttons appear.
-    $typeSeen[$row['type']] = ($typeSeen[$row['type']] ?? 0) + 1;
-    if ($typeTotals[$row['type']] > 1) {
-        $name = sprintf($translate('%s %d'), $name, $typeSeen[$row['type']]);
-    }
-
-    $size = MediaTypeLabel::size($m);
-    $label = $size !== ''
-        ? sprintf($translate('Download %s (%s)'), $name, $size)
-        : sprintf($translate('Download %s'), $name);
+    //
+    // Numbered only when the item has MORE THAN ONE file reading the same —
+    // "Download TIFF image 1", "…2" — so a lone PDF stays "Download PDF" rather
+    // than the noisy "Download PDF 1". The counter runs in attachment order,
+    // matching the order the buttons appear.
+    $patternSeen[$pattern] = ($patternSeen[$pattern] ?? 0) + 1;
+    $label = MediaTypeLabel::compose(
+        $pattern,
+        MediaTypeLabel::size($m),
+        $patternTotals[$pattern] > 1 ? $patternSeen[$pattern] : null
+    );
 
     // Belt and braces. With proxying on, the attachment disposition comes from
     // the presigned S3 response and this attribute is redundant; on a local
@@ -95,6 +114,7 @@ $typeSeen = [];
     </div>
   <?php endforeach; ?>
 
+  <?php if ($includeMetadata): ?>
   <?php // Same-origin, so this one has always worked — unlike the media links. ?>
   <div class="download--metadata">
     <a class="icon-left-metadata"
@@ -106,6 +126,7 @@ $typeSeen = [];
       <?= $escape($translate('Download Metadata')) ?>
     </a>
   </div>
+  <?php endif; ?>
 
 </div>
 <?php endif; ?>

@@ -76,7 +76,13 @@ class ReachabilityProbe
             // rather than indistinguishable from a dead connection.
             'ignore_errors' => true,
             'follow_location' => 0,
-            'header' => "User-Agent: AdvancedMedia-ReachabilityProbe\r\n",
+            // NO User-Agent of our own here, deliberately. The probe exists to
+            // predict whether the REAL server-side consumers (ImageServer,
+            // IiifServer, the transcript parser) can fetch a media URL, and they
+            // send whatever PHP's `user_agent` ini says — nothing at all on a stock
+            // install. A probe that announced itself politely passed on production
+            // while every real fetch was refused by the CDN's "no User-Agent" rule.
+            // Sending exactly what they send is the only honest test.
         ]]);
 
         $body = @file_get_contents($url, false, $context);

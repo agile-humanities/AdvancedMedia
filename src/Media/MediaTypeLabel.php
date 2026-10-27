@@ -48,12 +48,20 @@ class MediaTypeLabel
     /** e.g. "PDF", or "JP2" derived from the extension, or a last-resort "File". */
     public static function name(MediaRepresentation $media): string
     {
-        $type = (string) $media->mediaType();
+        return self::nameFor((string) $media->mediaType(), (string) $media->extension());
+    }
+
+    /**
+     * The same name from a bare type and extension — for the config form, which
+     * describes media TYPES and has no media to ask.
+     */
+    public static function nameFor(string $type, string $extension = ''): string
+    {
         if (isset(self::NAMES[$type])) {
             return self::NAMES[$type];
         }
 
-        $extension = trim((string) $media->extension());
+        $extension = trim($extension);
         if ($extension !== '') {
             return strtoupper($extension);
         }
@@ -86,5 +94,42 @@ class MediaTypeLabel
         $decimals = ($power >= 2 && $value < 100) ? 1 : 0;
 
         return sprintf('%s %s', number_format($value, $decimals), $units[$power]);
+    }
+
+    /** The token a label may carry where the file size should appear. */
+    const SIZE_TOKEN = '{size}';
+
+    /**
+     * Turn a label pattern into the text of one download link.
+     *
+     * A pattern is plain text with an optional {size} token: the built-in label is
+     * the pattern "Download PDF ({size})", and an admin's custom label is whatever
+     * they typed. One code path for both, so a custom label is not a special case
+     * that can drift from the default.
+     *
+     *   - {size} becomes the file size. When the size is unknown the token goes,
+     *     and so do the brackets or dash that introduced it — "Download PDF", never
+     *     "Download PDF ()".
+     *   - $number, when given, distinguishes several files sharing one label
+     *     ("… 2"). It goes before a trailing size, where it reads as part of the
+     *     name, and otherwise at the end.
+     */
+    public static function compose(string $pattern, string $size, ?int $number = null): string
+    {
+        $token = preg_quote(self::SIZE_TOKEN, '~');
+
+        if ($number !== null) {
+            $numbered = preg_replace('~(\s*[(\[–—-]?\s*' . $token . '\s*[)\]]?\s*)$~u', ' ' . $number . '$1', $pattern, 1, $count);
+            $pattern = $count ? $numbered : $pattern . ' ' . $number;
+        }
+
+        if ($size === '') {
+            // Take the token's own punctuation with it.
+            $pattern = preg_replace('~\s*[(\[]\s*' . $token . '\s*[)\]]|\s*[–—-]?\s*' . $token . '~u', '', $pattern);
+        } else {
+            $pattern = str_replace(self::SIZE_TOKEN, $size, $pattern);
+        }
+
+        return trim(preg_replace('~\s{2,}~u', ' ', $pattern));
     }
 }

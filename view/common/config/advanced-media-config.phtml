@@ -94,7 +94,7 @@ $row = function (string $settingKey, string $rowKey, array $choices, ?string $st
 .advmedia-config .advmedia-band { border-left: 3px solid #ddd; padding-left: 1em; margin-bottom: 2em; }
 .advmedia-config table { width: 100%; border-collapse: collapse; }
 .advmedia-config td { padding: .5em .6em; vertical-align: top; border-bottom: 1px solid #eee; }
-.advmedia-config td.advmedia-key { width: 40%; }
+.advmedia-config td.advmedia-key { width: 30%; }
 .advmedia-config .advmedia-count { color: #767676; font-weight: normal; }
 .advmedia-config .advmedia-desc { color: #555; margin: .15em 0 0; }
 /* Inherited rows are muted, NOT italic: the admin font's italics are hard to read at
@@ -114,6 +114,9 @@ $row = function (string $settingKey, string $rowKey, array $choices, ?string $st
 .advmedia-config .advmedia-overview { margin: 0 0 1.6em; }
 .advmedia-config .advmedia-overview td, .advmedia-config .advmedia-overview th { text-align: left; padding: .35em .6em; border-bottom: 1px solid #eee; }
 .advmedia-config th { text-align: left; padding: .5em .6em; border-bottom: 2px solid #ddd; font-size: .9em; color: #555; }
+.advmedia-config .advmedia-label-field { display: block; margin: 0 0 .35em; }
+.advmedia-config .advmedia-label-field input { width: 100%; min-width: 14em; box-sizing: border-box; }
+.advmedia-config .advmedia-label-field span { display: block; font-size: .85em; color: #555; }
 .advmedia-config .advmedia-setting { margin-bottom: 1.4em; }
 .advmedia-config .advmedia-setting:last-child { margin-bottom: 0; }
 .advmedia-config .advmedia-explain p { margin: .4em 0; color: #555; }
@@ -209,6 +212,64 @@ $row = function (string $settingKey, string $rowKey, array $choices, ?string $st
       <button type="submit" name="advancedmedia_clear_fetch_failures" value="1">
         <?= $escape($translate('Clear these')) ?>
       </button>
+    </div>
+  <?php endif; ?>
+
+  <?php // Problem media (Media\MediaAudit). Records whose FILE is the fault, so no
+        // setting here can fix them and there is no "clear" button: the list
+        // empties itself once an editor deletes or replaces the media. ?>
+  <?php if (!empty($options['mediaAudit'])): ?>
+    <?php
+    $auditText = [
+        'hidden' => [
+            $translate('Hidden system files'),
+            $translate('The file name starts with a dot (such as .DS_Store or ._page.jpg). These are operating-system files that a bulk import picked up from the source folder. They are not served, so viewers show a broken page and server-side image checks fail on every visit.'),
+        ],
+        'empty' => [
+            $translate('Empty files'),
+            $translate('The stored file has no content. The import usually fetched an empty or failed file. It displays as a blank page.'),
+        ],
+        'imageNoThumbnails' => [
+            $translate('Images without thumbnails'),
+            $translate('Thumbnails could not be made. The file may be damaged, may not really be an image, or may be too large for the thumbnailer. Open it to check: if it displays, regenerating its thumbnails may be enough.'),
+        ],
+        'unknownType' => [
+            $translate('Files of unknown type'),
+            $translate('The file type could not be recognised, so no media player applies to it. Re-import it with the correct file extension, or replace it.'),
+        ],
+    ];
+    ?>
+    <div class="advmedia-alert">
+      <h4><?= $escape($translate('Some media files look broken.')) ?></h4>
+      <p>
+        <?= $escape($translate('No setting on this page can fix these: the problem is the file itself. Open each media to delete it or replace its file. Also remove stray files from the source folder they were imported from, so a later import does not bring them back.')) ?>
+      </p>
+      <?php foreach ($options['mediaAudit'] as $check): ?>
+        <?php [$label, $explanation] = $auditText[$check['key']]; ?>
+        <details>
+          <summary>
+            <strong><?= $escape($label) ?></strong>
+            <span class="advmedia-count">(<?= (int) $check['count'] ?>)</span>
+          </summary>
+          <p><?= $escape($explanation) ?></p>
+          <ul>
+            <?php foreach ($check['rows'] as $r): ?>
+              <li>
+                <a href="<?= $escapeAttr($this->url('admin/id', ['controller' => 'media', 'id' => $r['id']])) ?>"><?= $escape(sprintf($translate('Media %d'), $r['id'])) ?></a>
+                (<a href="<?= $escapeAttr($this->url('admin/id', ['controller' => 'item', 'id' => $r['itemId']])) ?>"><?= $escape(sprintf($translate('item %d'), $r['itemId'])) ?></a>)
+                — <code><?= $escape($r['file']) ?></code>
+                <span class="advmedia-count"><?= $escape($r['mediaType']) ?>, <?= $r['size'] === null ? '?' : (int) $r['size'] ?> <?= $escape($translate('bytes')) ?></span>
+                <?php if ($r['source'] !== ''): ?>
+                  <br><span class="advmedia-count"><?= $escape($translate('Imported from:')) ?> <code><?= $escape($r['source']) ?></code></span>
+                <?php endif; ?>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+          <?php if ($check['count'] > count($check['rows'])): ?>
+            <p class="advmedia-count"><?= $escape(sprintf($translate('Showing the first %1$d of %2$d.'), count($check['rows']), $check['count'])) ?></p>
+          <?php endif; ?>
+        </details>
+      <?php endforeach; ?>
     </div>
   <?php endif; ?>
 
@@ -481,6 +542,43 @@ NGINX;
       </section>
     <?php endif; ?>
 
+    <?php // ---- Downloads block: offer the item's metadata. Same two-scope shape
+          // as the display policies above. ---- ?>
+    <?php if (!empty($options['downloadMetadata'])): $dm = $options['downloadMetadata']; ?>
+      <section class="advmedia-setting">
+        <h4><?= $escape($translate('Metadata download')) ?></h4>
+        <?php if ($dm['scope'] === 'site'): ?>
+          <?php $globalLabel = $dm['global'] ? $translate('on') : $translate('off'); ?>
+          <p>
+            <label>
+              <strong><?= $escape($translate('Include Download Metadata')) ?></strong>
+              <select name="<?= $escape($dm['key']) ?>" class="advmedia-select<?= $dm['siteStored'] === '' ? ' is-inherited' : '' ?>">
+                <option value=""<?= $dm['siteStored'] === '' ? ' selected' : '' ?>>
+                  <?= sprintf($escape($translate('Use global default (currently: %s)')), $escape($globalLabel)) ?>
+                </option>
+                <option value="1"<?= $dm['siteStored'] === '1' ? ' selected' : '' ?>><?= $escape($translate('On')) ?></option>
+                <option value="0"<?= $dm['siteStored'] === '0' ? ' selected' : '' ?>><?= $escape($translate('Off')) ?></option>
+              </select>
+            </label>
+          </p>
+          <p class="advmedia-desc">
+            <?= $escape($translate('This site follows the global setting unless you override it here. The global default is set under Modules → Advanced media.')) ?>
+          </p>
+        <?php else: ?>
+          <p>
+            <label>
+              <input type="checkbox" name="<?= $escape($dm['key']) ?>" value="1"
+                <?= $dm['global'] ? 'checked' : '' ?>>
+              <strong><?= $escape($translate('Include Download Metadata')) ?></strong>
+            </label>
+          </p>
+        <?php endif; ?>
+        <p class="advmedia-desc">
+          <?= $escape($translate('When on, the Downloads block offers a “Download Metadata” link to the item’s record as JSON. It appears on every item where the block is placed, including items with no downloadable files. When off, the block shows files only, and is omitted entirely from items that have none.')) ?>
+        </p>
+      </section>
+    <?php endif; ?>
+
     <?php // ---- Download threshold (both scopes; follows the '' = inherit convention) ---- ?>
     <?php $threshold = $options['threshold']; ?>
     <?php $thresholdInheriting = ($threshold['stored'] === '' || $threshold['stored'] === null); ?>
@@ -520,13 +618,44 @@ NGINX;
     <strong><?= $escape($translate('The two columns are independent:')) ?></strong>
     <?= $escape($translate('a media type can show a working viewer and still be offered as a download.')) ?>
     <?= $escape($translate('Downloads appear only where the Downloads block has been added to the item page.')) ?>
+    <?= $escape($translate('The download label replaces the link text for that media type. Each field shows the built-in label in grey; leave it blank to keep that. Write {size} where the file size should appear, or leave it out to omit the size.')) ?>
   </div>
+  <?php
+  /**
+   * One download-label text field. The placeholder is what the row resolves to
+   * when left blank — the label set globally if there is one (site scope), else
+   * the built-in label — so an empty field is never a mystery.
+   */
+  $labels = $options['downloadLabels'];
+  $labelField = function (string $rowKey, string $fallback, ?string $caption = null)
+      use ($escape, $translate, $context, $labels, $scope) {
+      $storedLabel = (string) ($labels['stored'][$rowKey] ?? '');
+      $globalLabel = (string) ($labels['global'][$rowKey] ?? '');
+      $html = '<label class="advmedia-label-field">';
+      if ($caption !== null) {
+          $html .= '<span>' . $escape($caption) . '</span>';
+      }
+      $html .= sprintf(
+          '<input type="text" name="%s" value="%s" placeholder="%s" maxlength="%d">',
+          $escape(sprintf('%s[%s][%s]', $labels['key'], $context, $rowKey)),
+          $escape($storedLabel),
+          $escape($globalLabel !== '' ? $globalLabel : $fallback),
+          \AdvancedMedia\Config\ConfigOptions::LABEL_MAX_LENGTH
+      );
+      $html .= '</label>';
+      if ($storedLabel !== '' && $scope === 'site') {
+          $html .= sprintf(' <span class="advmedia-overridden">%s</span>', $escape($translate('overrides global')));
+      }
+      return $html;
+  };
+  ?>
   <div class="advmedia-band">
     <table>
       <tr class="advmedia-head">
         <th class="advmedia-key"><?= $escape($translate('Media type')) ?></th>
         <th><?= $escape($translate('Player')) ?></th>
         <th><?= $escape($translate('Include in Downloads block')) ?></th>
+        <th><?= $escape($translate('Download label')) ?></th>
       </tr>
       <?php foreach ($options['players'] as $p): ?>
         <tr>
@@ -548,6 +677,44 @@ NGINX;
             <?= $row($keys['download'], $p['key'], $options['downloadChoices'],
                   $stored[$keys['download']][$p['key']] ?? null,
                   $inherited[$keys['download']][$p['key']] ?? null) ?>
+          </td>
+          <td>
+            <?php
+            // A specific type shows its own built-in label. A group row has none
+            // to show: it stands for many types, each with its own.
+            $builtIn = $p['defaultName'] !== null
+                ? sprintf($translate('Download %s (%s)'), $translate($p['defaultName']), '{size}')
+                : $translate('Built-in label for each type');
+            ?>
+            <?= $labelField($p['key'], $builtIn) ?>
+            <?php // One media type, several kinds of file: let each be named. Open
+                  // when any is already set, so a stored label is never hidden. ?>
+            <?php if ($p['extensions']): ?>
+              <?php
+              $separator = \AdvancedMedia\Config\ConfigOptions::LABEL_EXTENSION_SEPARATOR;
+              $anySet = false;
+              foreach ($p['extensions'] as $e) {
+                  $extensionKey = $p['key'] . $separator . $e['extension'];
+                  if (($labels['stored'][$extensionKey] ?? '') !== '' || ($labels['global'][$extensionKey] ?? '') !== '') {
+                      $anySet = true;
+                  }
+              }
+              $typeLabel = (string) ($labels['stored'][$p['key']] ?? '');
+              if ($typeLabel === '') {
+                  $typeLabel = (string) ($labels['global'][$p['key']] ?? '');
+              }
+              ?>
+              <details<?= $anySet ? ' open' : '' ?>>
+                <summary><?= $escape($translate('Label by file extension')) ?></summary>
+                <?php foreach ($p['extensions'] as $e): ?>
+                  <?= $labelField(
+                        $p['key'] . $separator . $e['extension'],
+                        $typeLabel !== '' ? $typeLabel : $builtIn,
+                        sprintf($translate('.%s — %d media'), $e['extension'], $e['count'])
+                      ) ?>
+                <?php endforeach; ?>
+              </details>
+            <?php endif; ?>
           </td>
         </tr>
       <?php endforeach; ?>

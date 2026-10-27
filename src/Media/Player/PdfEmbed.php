@@ -64,14 +64,11 @@ class PdfEmbed extends AbstractPlayer
             . '<object class="advancedmedia-pdf-frame" data="%s" type="application/pdf" aria-label="%s">'
             . '<div class="advancedmedia-pdf-fallback">%s<p>%s</p></div>'
             . '</object>'
-            . '<p class="advancedmedia-pdf-download"><a href="%s">%s</a></p>'
             . '</div>',
             $escapeAttr($embedUrl),
             $escapeAttr($label),
             $poster,
-            $escape($translate('This browser cannot display PDFs in the page.')),
-            $escapeAttr($url),
-            $escape($translate('Open the PDF'))
+            $escape($translate('This browser cannot display PDFs in the page.'))
         );
     }
 }

@@ -21,7 +21,8 @@ class ConfigOptionsFactory implements FactoryInterface
             $services->get('Omeka\Settings\Site'),
             $services->get('Omeka\Connection'),
             $config['advancedmedia'] ?? [],
-            $services->get('Omeka\File\Store')
+            $services->get('Omeka\File\Store'),
+            $services->get(\AdvancedMedia\Media\MediaAudit::class)
         );
     }
 }

@@ -1,0 +1,14 @@
+/* OHMS viewer (AdvancedMedia\Media\Player\Ohms, wrapping OHMS Embed's iframe). */
+
+.advancedmedia-ohms {
+    --advancedmedia-ohms-height: 800px;
+    width: 100%;
+}
+
+/* The module's renderer sets an inline 800px; the custom property lets a theme choose. */
+.advancedmedia-ohms iframe {
+    display: block;
+    width: 100%;
+    height: var(--advancedmedia-ohms-height) !important;
+    border: 0;
+}

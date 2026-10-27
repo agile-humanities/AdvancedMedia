@@ -442,3 +442,28 @@ Full detail in [`../../../_media_iiif_stack_README.md`](../../../_media_iiif_sta
   forgotten.
 - Environment/third-party patches (IiifServer manifest cache, ImageServer tiler) live in the same
   sub-repo but are unrelated — keep them out of AdvancedMedia commits.
+
+---
+
+## 11. OHMS (2026-10-14)
+
+OHMS interviews come through the **OHMS Embed** module (omeka-s-modules/OhmsEmbed 1.0.0/1.0.1), which registers a
+file renderer on the `xml` extension that iframes its bundled ohms.js viewer; the viewer fetches the XML and plays
+the interview's audio/video itself. AdvancedMedia adapts it rather than re-implementing it:
+
+- `Media\Player\Ohms` (`ohms`): capabilities `text/xml`, `application/xml`; `isAvailable()` is
+  `class_exists(OhmsEmbedRenderer)`, so the player vanishes from the config dropdowns when the module is absent and
+  the resolver falls through to `core-native`; `supports()` requires the `.xml` extension; `render()` delegates to
+  the module's renderer (1.0.1's iframe `title` included) inside `.advancedmedia-ohms`, with `asset/css/ohms.css`
+  (`--advancedmedia-ohms-height`, default 800px, overriding the renderer's inline height).
+- `Media\Structure\OhmsInterview` (`ohms-interview`, priority 97): primary media is an OHMS XML; groups the item's
+  single audio/video media with it, or with several the one whose file name matches the XML's `<media_url>` (read
+  from the local original only). Grouping marks the file as "shown in a viewer", so the display policy hides it and
+  the Downloads block can still offer it.
+- `Media\Compound\OhmsInterview` (`ohmsInterview`): renders the `ohms` player for the XML only.
+- Default map rows: `text/xml` → `ohms`, `application/xml` → `ohms`; `ohms-interview` → `ohmsInterview`.
+
+Verified on the generic stack (item 21, OhmsEmbed 1.0.1): the Advanced Media block renders the viewer alone with
+the title attribute; the config page lists the player and the structure. The viewer `fetch()`es the XML, so S3
+originals need the media proxy or bucket CORS. Theme side: AgileBaseOmekaTheme gives `.advancedmedia-ohms` and the
+bare renderer frame their own non-16:9 rule (`$ohms_viewer_height`).

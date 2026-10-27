@@ -1,6 +1,8 @@
 <?php
 namespace AdvancedMedia\Site\ResourcePageBlockLayout;
 
+use AdvancedMedia\Config\ConfigOptions;
+use AdvancedMedia\Config\ScopedFlag;
 use AdvancedMedia\Media\DownloadResolver;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Site\ResourcePageBlockLayout\ResourcePageBlockLayoutInterface;
@@ -37,9 +39,13 @@ class Downloads implements ResourcePageBlockLayoutInterface
     /** @var DownloadResolver */
     private $resolver;
 
-    public function __construct(DownloadResolver $resolver)
+    /** @var ScopedFlag */
+    private $flags;
+
+    public function __construct(DownloadResolver $resolver, ScopedFlag $flags)
     {
         $this->resolver = $resolver;
+        $this->flags = $flags;
     }
 
     public function getLabel(): string
@@ -56,14 +62,41 @@ class Downloads implements ResourcePageBlockLayoutInterface
     {
         $site = $view->currentSite();
 
-        $media = $this->resolver->downloadableMedia($resource, [
+        $context = [
             'context' => DownloadResolver::DEFAULT_CONTEXT,
             'site' => $site ? $site->id() : null,
-        ]);
+        ];
+
+        $media = $this->resolver->downloadableMedia($resource, $context);
+
+        // The metadata link is an element of the block in its own right, decided
+        // here and NOT by whether any file happens to be downloadable. An item
+        // with no opted-in files still has metadata.
+        $includeMetadata = $this->flags->isOn(
+            ConfigOptions::DOWNLOAD_METADATA_KEY,
+            ConfigOptions::DOWNLOAD_METADATA_DEFAULT,
+            $context
+        );
+
+        if (!$media && !$includeMetadata) {
+            return '';
+        }
+
+        // Custom link text, where an admin has set any. Resolved here because it
+        // is configuration; the template only composes the final string.
+        $labelPatterns = [];
+        foreach ($media as $m) {
+            $pattern = $this->resolver->labelPattern($m, $context);
+            if ($pattern !== null) {
+                $labelPatterns[$m->id()] = $pattern;
+            }
+        }
 
         return $view->partial('common/resource-page-block-layout/downloads', [
             'item' => $resource,
             'media' => $media,
+            'includeMetadata' => $includeMetadata,
+            'labelPatterns' => $labelPatterns,
         ]);
     }
 }

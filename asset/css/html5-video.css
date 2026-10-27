@@ -1,0 +1,52 @@
+/**
+ * HTML5 video player.
+ *
+ * The player is a FRAME of fixed proportion with the video fitted inside it, not a
+ * <video> left to size itself. A bare <video> takes its size from whatever it
+ * currently has to show: the poster's pixels before play, the film's own pixels
+ * after. So the box changes size when the visitor presses play, and at the film's
+ * native width (854px, 1920px…) it is wider than the column it sits in and pushes
+ * out over the neighbouring content. The frame takes the video's own dimensions
+ * out of the layout altogether.
+ *
+ * 4:3 is the proportion the theme's other media frames use, so a video sits in
+ * the item layout at the same size as an image would. A 16:9 film is letterboxed
+ * inside it; a portrait one is pillarboxed. Nothing is ever cropped.
+ *
+ * HEIGHT CAP. Where the player has the whole page width to itself (a tablet, a
+ * single-column layout), a 4:3 frame is taller than the screen: at 1100px wide it
+ * is some 790px high. --advancedmedia-video-max-height limits it. The frame then
+ * keeps its full width and simply becomes shallower than 4:3, with the video still
+ * fitted whole inside it. The cap is OFF here, because where it should apply is a
+ * question about the page layout, and only the theme knows its breakpoints.
+ *
+ * Structural only, and overridable: a theme changes the proportion, the bars or
+ * the cap by setting the properties, without restating the rules.
+ */
+.advancedmedia-video {
+    --advancedmedia-video-ratio: 4 / 3;
+    --advancedmedia-video-background: #000;
+    --advancedmedia-video-max-height: none;
+
+    position: relative;
+    width: 100%;
+    /* A grid or flex child may not shrink below its content by default. The video
+       is absolutely positioned so it contributes nothing, but say so explicitly. */
+    min-width: 0;
+    aspect-ratio: var(--advancedmedia-video-ratio);
+    max-height: var(--advancedmedia-video-max-height);
+    overflow: hidden;
+    /* Dark before anything has loaded, and it is what the letterbox bars are. */
+    background: var(--advancedmedia-video-background);
+}
+
+.advancedmedia-video video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: var(--advancedmedia-video-background);
+}

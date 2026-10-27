@@ -223,9 +223,43 @@ class Module extends AbstractModule
         // The /files/* routes are public: they stand in for static file serving.
         $acl->allow(null, [Controller\FileController::class]);
 
+        $this->ensureUserAgent();
+
         // The AmazonS3 store is replaced with our proxying subclass via a
         // 'delegators' entry in module.config.php — order-independent, so nothing
         // here needs to run at bootstrap. See ProxyingAwsS3Delegator for the why.
+    }
+
+    /** What server-side fetches identify themselves as when PHP has no user_agent set. */
+    const SERVER_FETCH_USER_AGENT = 'Omeka-S (AdvancedMedia server-side fetch)';
+
+    /**
+     * Give PHP's own HTTP fetches a User-Agent when the installation has none.
+     *
+     * ⚠️ PHP SENDS NO User-Agent HEADER AT ALL BY DEFAULT (`user_agent` is empty in
+     * a stock php.ini), and that is invisible until something in front of the site
+     * objects. With media proxying on, the code that fetches a media file
+     * SERVER-SIDE — ImageServer building a derivative or a tile, IiifServer reading
+     * dimensions, our own transcript parser — fetches it from this site's PUBLIC
+     * address, i.e. back in through the CDN and its firewall. Blocking requests
+     * with no User-Agent is a standard bot rule there (AWS WAF's common rule set
+     * has it), so every one of those fetches gets a 403.
+     *
+     * It then fails far from the cause: ImageServer answers each IIIF image with
+     * 500 "the resulting file is empty or not found", while the same URL opens
+     * perfectly in a browser — which does send a User-Agent. That was production
+     * on 2026-10-09.
+     *
+     * We do not patch the consumers (third-party, and there are several). They all
+     * go through PHP's http stream wrapper, which reads this one ini value, so
+     * setting it once covers them. An installation that has chosen its own
+     * user_agent keeps it.
+     */
+    private function ensureUserAgent(): void
+    {
+        if ((string) ini_get('user_agent') === '') {
+            @ini_set('user_agent', self::SERVER_FETCH_USER_AGENT);
+        }
     }
 
     public function uninstall(ServiceLocatorInterface $services)
@@ -238,6 +272,8 @@ class Module extends AbstractModule
         $settings->delete(ConfigOptions::THRESHOLD_KEY);
         $settings->delete(ConfigOptions::PRIMARY_COMPOUND_ONLY_KEY);
         $settings->delete(ConfigOptions::PRIMARY_FIRST_KEY);
+        $settings->delete(ConfigOptions::DOWNLOAD_METADATA_KEY);
+        $settings->delete(ConfigOptions::DOWNLOAD_LABEL_KEY);
         $settings->delete(Service\File\Store\ProxyingAwsS3Factory::OPTION_PROXY_FILES);
         $settings->delete(Service\File\Store\ProxyingAwsS3Factory::OPTION_BASE_URI);
         $settings->delete(File\ServeMode::SERVE_MODE_KEY);

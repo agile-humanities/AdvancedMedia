@@ -39,6 +39,9 @@ class ConfigWriter
         // `=== ''` and is_scalar(), so '0' passes through untouched and needs no
         // special handling — which is precisely why the column stores strings.
         ConfigOptions::DOWNLOAD_KEY,
+        // Free text rather than a choice, but the same shape and the same rule:
+        // '' means inherit and is stored as absence. Cleaned by cleanLabels().
+        ConfigOptions::DOWNLOAD_LABEL_KEY,
     ];
 
     /**
@@ -49,6 +52,7 @@ class ConfigWriter
     const SITE_TRISTATE_KEYS = [
         ConfigOptions::PRIMARY_COMPOUND_ONLY_KEY,
         ConfigOptions::PRIMARY_FIRST_KEY,
+        ConfigOptions::DOWNLOAD_METADATA_KEY,
     ];
 
     /** @var Settings */
@@ -133,6 +137,7 @@ class ConfigWriter
     /** Persist the maps at GLOBAL scope from a raw POST array. */
     public function saveGlobal(array $post): void
     {
+        $post = self::cleanLabels($post);
         foreach (self::KEYS as $key) {
             $stored = $this->settings->get($key, []);
             $this->settings->set($key, self::mergePreserving(
@@ -146,6 +151,7 @@ class ConfigWriter
     /** Persist the maps at SITE scope. */
     public function saveSite(array $post, $siteSettings): void
     {
+        $post = self::cleanLabels($post);
         foreach (self::KEYS as $key) {
             $stored = $siteSettings->get($key, []);
             $siteSettings->set($key, self::mergePreserving(
@@ -157,6 +163,36 @@ class ConfigWriter
         foreach (self::SITE_TRISTATE_KEYS as $key) {
             $this->saveTriStateSite($post, $siteSettings, $key);
         }
+    }
+
+    /**
+     * Normalise posted download labels before they are merged.
+     *
+     * The other maps hold values picked from a list; these are typed. So: tags
+     * out (a label is text — it is escaped on output regardless, this just keeps
+     * markup from being stored and shown literally), whitespace collapsed, length
+     * capped. A label that is blank after cleaning becomes '', which the merge
+     * reads as "inherit" — so clearing a field restores the built-in label.
+     */
+    public static function cleanLabels(array $post): array
+    {
+        $key = ConfigOptions::DOWNLOAD_LABEL_KEY;
+        if (!isset($post[$key]) || !is_array($post[$key])) {
+            return $post;
+        }
+        foreach ($post[$key] as $context => $rows) {
+            if (!is_array($rows)) {
+                continue;
+            }
+            foreach ($rows as $rowKey => $value) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+                $clean = trim(preg_replace('~\s+~u', ' ', strip_tags((string) $value)));
+                $post[$key][$context][$rowKey] = mb_substr($clean, 0, ConfigOptions::LABEL_MAX_LENGTH);
+            }
+        }
+        return $post;
     }
 
     /**

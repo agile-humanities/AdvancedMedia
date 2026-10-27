@@ -277,3 +277,7 @@ There is **no zero-copy equivalent** for remote (S3) media on a pure Apache stac
 Apache's `X-Sendfile` (`mod_xsendfile`) can only serve *local* files, so it cannot proxy
 from a bucket. Such installs use the streaming fallback automatically — it works, it is
 just heavier. For zero-copy, put nginx in front of Apache and add the snippet there.
+
+## Licence
+
+[CeCILL v2.1](LICENSE.txt), a GPL-compatible free software licence (see its article 5.3.4).

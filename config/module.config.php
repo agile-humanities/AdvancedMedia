@@ -11,6 +11,7 @@ return [
             Media\CompoundResolver::class => Service\Media\CompoundResolverFactory::class,
             Media\Composer::class => Service\Media\ComposerFactory::class,
             Media\DownloadResolver::class => Service\Media\DownloadResolverFactory::class,
+            Media\MediaAudit::class => Service\Media\MediaAuditFactory::class,
             File\FetchDiagnostics::class => Service\File\FetchDiagnosticsFactory::class,
             File\ReachabilityProbe::class => \Laminas\ServiceManager\Factory\InvokableFactory::class,
             File\ServeModeDetector::class => \Laminas\ServiceManager\Factory\InvokableFactory::class,
@@ -214,6 +215,8 @@ return [
             'photoswipe'     => Media\Player\PhotoSwipe::class,
             'thumbnail-link' => Media\Player\ThumbnailLink::class,
             'circular-audio' => Media\Player\CircularAudio::class,
+            // Adapter over the OHMS Embed module's viewer; available only while that module is active.
+            'ohms'           => Media\Player\Ohms::class,
         ],
         'factories' => [
             // The one player that fetches server-side (it reads the VTT), so it
@@ -237,6 +240,7 @@ return [
             'epub-edition'          => Media\Structure\EpubEdition::class,         //  60
             'pdf-with-image-set'    => Media\Structure\PdfWithImageSet::class,     //  45
             'paged-document'        => Media\Structure\PagedDocument::class,       //  40
+            'ohms-interview'        => Media\Structure\OhmsInterview::class,       //  97
         ],
     ],
 
@@ -257,6 +261,7 @@ return [
             'mirador'             => Service\Media\Compound\MiradorFactory::class,
             'photoswipe'          => Service\Media\Compound\PhotoSwipeFactory::class,
             'pagedDocument'       => Service\Media\Compound\PagedDocumentFactory::class,
+            'ohmsInterview'       => Service\Media\Compound\OhmsInterviewFactory::class,
         ],
     ],
 
@@ -279,6 +284,12 @@ return [
                 // all, so without this row an uploaded edition falls through to a
                 // thumbnail linking to the file.
                 'application/epub+zip' => 'epub-reader',
+
+                // An OHMS XML (OHMS Embed module) plays in the OHMS viewer. The player is
+                // available only while that module is active; otherwise the resolver falls
+                // through to core-native (Omeka's thumbnail fallback for XML).
+                'text/xml' => 'ohms',
+                'application/xml' => 'ohms',
                 'default' => 'core-native',
             ],
         ],
@@ -303,6 +314,7 @@ return [
             'page' => [
                 'audio-with-transcript' => 'audioTranscript',
                 'av-with-images'        => 'avWithImages',
+                'ohms-interview'        => 'ohmsInterview',
                 'embed-with-poster'     => 'interactiveResource',
                 'multiple-images'       => 'mirador',
 

@@ -57,7 +57,98 @@
         }
     }
 
-    function buildToc(root, rendition, navigation) {
+    /** Collapse "." and ".." segments: "xhtml/../text/a.xhtml" -> "text/a.xhtml". */
+    function normalisePath(path) {
+        var out = [];
+        path.split('/').forEach(function (segment) {
+            if (segment === '..') { out.pop(); } else if (segment && segment !== '.') { out.push(segment); }
+        });
+        return out.join('/');
+    }
+
+    function directoryOf(path) {
+        var cut = (path || '').lastIndexOf('/');
+        return cut === -1 ? '' : path.slice(0, cut + 1);
+    }
+
+    /**
+     * Turn a table-of-contents href into one the spine recognises.
+     *
+     * ⚠️ epub.js DOES NOT DO THIS FOR US. It hands back each contents entry's href
+     * exactly as written, which is relative to the NAVIGATION DOCUMENT, while the
+     * spine it looks sections up in is keyed relative to the PACKAGE (.opf). The two
+     * only agree when the navigation document sits beside the package file. A book
+     * that keeps it in a subfolder (nav at "xhtml/00_Nav.xhtml" listing
+     * "08_Chapter01.xhtml", spine holding "xhtml/08_Chapter01.xhtml") gets a
+     * contents panel in which every link silently does nothing: display() rejects
+     * with "No Section Found" and nothing is shown to the reader.
+     *
+     * Returns null when no spine section matches, so the caller can say so.
+     */
+    function resolveTocHref(book, href) {
+        var hash = href.indexOf('#');
+        var path = hash === -1 ? href : href.slice(0, hash);
+        var fragment = hash === -1 ? '' : href.slice(hash);
+        try { path = decodeURI(path); } catch (e) { /* keep it as written */ }
+
+        var packaging = book.packaging || {};
+        var candidates = [path];
+        [packaging.navPath, packaging.ncxPath].forEach(function (source) {
+            if (source) { candidates.push(normalisePath(directoryOf(source) + path)); }
+        });
+
+        for (var i = 0; i < candidates.length; i++) {
+            var section = candidates[i] && book.spine.get(candidates[i]);
+            if (section) { return section.href + fragment; }
+        }
+
+        // Last resort: the same file name anywhere in the spine. Only when exactly
+        // one section has it, so a book with a "ch1.xhtml" per folder cannot be sent
+        // to the wrong one.
+        var name = normalisePath(path).split('/').pop();
+        var matches = (book.spine.spineItems || []).filter(function (item) {
+            return item.href && item.href.split('/').pop() === name;
+        });
+        return matches.length === 1 ? matches[0].href + fragment : null;
+    }
+
+    function buildTocList(book, rendition, items) {
+        var list = document.createElement('ul');
+        items.forEach(function (item) {
+            var li = document.createElement('li');
+            var target = item.href ? resolveTocHref(book, item.href) : null;
+            var text = item.label ? item.label.trim() : '';
+            var entry;
+            if (target) {
+                entry = document.createElement('a');
+                entry.href = '#';
+                entry.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    rendition.display(target).catch(function (error) {
+                        if (window.console && console.warn) {
+                            console.warn('AdvancedMedia ePub reader: contents link failed', target, error);
+                        }
+                    });
+                });
+            } else {
+                // A heading with nowhere to go: show it, but not as a dead link.
+                // Sample and excerpt editions do this wholesale: the contents list
+                // the full book while the file carries only the first chapters.
+                entry = document.createElement('span');
+                entry.className = 'advancedmedia-epub-toc-unavailable';
+            }
+            entry.textContent = text;
+            li.appendChild(entry);
+            // Chapters usually sit one level down, under a part or unit heading.
+            if (item.subitems && item.subitems.length) {
+                li.appendChild(buildTocList(book, rendition, item.subitems));
+            }
+            list.appendChild(li);
+        });
+        return list;
+    }
+
+    function buildToc(root, book, rendition, navigation) {
         var toc = root.querySelector('.advancedmedia-epub-toc');
         var toggle = root.querySelector('.advancedmedia-epub-toc-toggle');
         if (!toc || !toggle) { return; }
@@ -68,19 +159,7 @@
             return;
         }
 
-        var list = document.createElement('ul');
-        items.forEach(function (item) {
-            var li = document.createElement('li');
-            var link = document.createElement('a');
-            link.href = '#';
-            link.textContent = item.label ? item.label.trim() : '';
-            link.addEventListener('click', function (event) {
-                event.preventDefault();
-                rendition.display(item.href);
-            });
-            li.appendChild(link);
-            list.appendChild(li);
-        });
+        var list = buildTocList(book, rendition, items);
         toc.appendChild(list);
 
         toggle.addEventListener('click', function () {
@@ -145,8 +224,12 @@
                         toolbar.hidden = false;
                         status.hidden = true;
                         if (fallback) {
-                            // Keep it reachable, just demoted once the reader works.
-                            fallback.classList.add('advancedmedia-epub-fallback--secondary');
+                            // The link exists for the visitor who CANNOT read the book
+                            // in the page. Once the reader is open it is no longer a
+                            // fallback, just an invitation to take the file away —
+                            // which the client does not want offered. fail() never
+                            // reaches here, so a broken reader still keeps its link.
+                            fallback.hidden = true;
                         }
 
                         root.querySelector('.advancedmedia-epub-prev')
@@ -164,7 +247,7 @@
                         root.addEventListener('keyup', onKey);
 
                         return book.loaded.navigation.then(function (navigation) {
-                            buildToc(root, rendition, navigation);
+                            buildToc(root, book, rendition, navigation);
                         });
                     });
             })

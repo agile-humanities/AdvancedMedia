@@ -1,6 +1,7 @@
 <?php
 namespace AdvancedMedia\Config;
 
+use AdvancedMedia\Media\MediaTypeLabel;
 use AdvancedMedia\Media\Compound\Manager as CompoundManager;
 use AdvancedMedia\Media\Player\Manager as PlayerManager;
 use AdvancedMedia\Media\Structure\Manager as StructureManager;
@@ -92,6 +93,57 @@ class ConfigOptions
 
     const THRESHOLD_DEFAULT = 10;
 
+    /**
+     * Whether the Downloads block offers the item's metadata (its JSON-LD API
+     * record) alongside the files.
+     *
+     * A setting rather than a fixture of the template because it is a decision
+     * about the ITEM, not about any file: it has no media type to hang a row of the
+     * downloads map on, and it must be answerable for an item with no downloadable
+     * files at all. That last case is why it exists — the link used to be markup
+     * inside the file list, so an item with nothing to download lost it too.
+     *
+     * Same two-scope shape as the display policies above (ScopedFlag). Shipped
+     * default ON: the link was always shown, so off-by-default would silently
+     * remove it from every existing page.
+     */
+    /**
+     * Custom text for the Downloads block's links, per media type.
+     *
+     * A map shaped like the others (context → row → value, '' / absence = inherit)
+     * but holding FREE TEXT, which sets it apart in two ways:
+     *
+     *   - It has no shipped default map. The default label is derived per file
+     *     (MediaTypeLabel), so an unset row means "use the built-in label", and a
+     *     label is a per-install decision, never a module default.
+     *   - It is kept OUT of the stored/inherited/valid structures the anomaly check
+     *     walks. That check asks "is this value one of the offered choices?", which
+     *     has no meaning for text and would flag every label as an orphan.
+     *
+     * ROW KEYS GO ONE STEP FINER THAN THE OTHER COLUMNS: "<type>;ext=<extension>".
+     * A media type is not always one kind of file. Omeka types an uploaded WebVTT
+     * transcript as text/plain, exactly as it does a .txt transcript, so the type
+     * alone cannot tell "timestamped transcript" from "transcript". The extension
+     * can. Only labels need this: whether and how a file is offered is the same
+     * for both, what to CALL it is not.
+     *
+     * The label may carry a {size} token (MediaTypeLabel::compose).
+     */
+    const DOWNLOAD_LABEL_KEY = 'advancedmedia_download_labels';
+
+    /**
+     * Separates a media type from a file extension in a label row key:
+     * "text/plain;ext=vtt". See DOWNLOAD_LABEL_KEY's note on why labels alone can
+     * be keyed this finely.
+     */
+    const LABEL_EXTENSION_SEPARATOR = ';ext=';
+
+    /** Longest label stored. Generous for a link, small enough to stay a link. */
+    const LABEL_MAX_LENGTH = 200;
+
+    const DOWNLOAD_METADATA_KEY = 'advancedmedia_download_metadata';
+    const DOWNLOAD_METADATA_DEFAULT = true;
+
     /** Wildcard rows always offered in the players band, before the exact-MIME rows. */
     const PLAYER_GROUP_ROWS = ['audio/*', 'video/*', 'image/*'];
 
@@ -119,6 +171,9 @@ class ConfigOptions
     /** @var mixed The configured file store, for the proxy panel. */
     private $store;
 
+    /** @var \AdvancedMedia\Media\MediaAudit|null */
+    private $mediaAudit;
+
     public function __construct(
         StructureManager $structures,
         CompoundManager $compounds,
@@ -127,9 +182,11 @@ class ConfigOptions
         SiteSettings $siteSettings,
         Connection $connection,
         array $config,
-        $store = null
+        $store = null,
+        ?\AdvancedMedia\Media\MediaAudit $mediaAudit = null
     ) {
         $this->store = $store;
+        $this->mediaAudit = $mediaAudit;
         $this->structures = $structures;
         $this->compounds = $compounds;
         $this->players = $players;
@@ -240,6 +297,9 @@ class ConfigOptions
             // Global-only: server-side fetch failures are an installation-wide
             // symptom (an unreachable base URI), not a per-site setting.
             'fetchFailures' => $isSite ? [] : $this->fetchFailures(),
+            // Global-only too: a broken file is broken on every site. Records, not
+            // settings — the fix is an editor deleting or replacing the media.
+            'mediaAudit' => ($isSite || !$this->mediaAudit) ? [] : $this->mediaAudit->run(),
             'proxy' => $isSite ? null : $this->proxyRow(),
             // Display policy — shown at BOTH scopes. Global is a plain on/off
             // (the base); site is a tri-state that can inherit the global value.
@@ -264,6 +324,23 @@ class ConfigOptions
                     self::PRIMARY_FIRST_DEFAULT
                 ),
                 'siteStored' => $isSite ? $this->triStateSiteStored(self::PRIMARY_FIRST_KEY) : null,
+            ],
+            // Downloads block: custom link text. Free text, so it travels apart
+            // from $stored/$inherited — see DOWNLOAD_LABEL_KEY.
+            'downloadLabels' => [
+                'key' => self::DOWNLOAD_LABEL_KEY,
+                'stored' => $this->storedMap(self::DOWNLOAD_LABEL_KEY, $isSite),
+                'global' => $isSite ? $this->globalMap(self::DOWNLOAD_LABEL_KEY) : [],
+            ],
+            // Downloads block: offer the item's metadata. Same two-scope shape.
+            'downloadMetadata' => [
+                'key' => self::DOWNLOAD_METADATA_KEY,
+                'scope' => $scope,
+                'global' => (bool) $this->settings->get(
+                    self::DOWNLOAD_METADATA_KEY,
+                    self::DOWNLOAD_METADATA_DEFAULT
+                ),
+                'siteStored' => $isSite ? $this->triStateSiteStored(self::DOWNLOAD_METADATA_KEY) : null,
             ],
             'stored' => $stored,
             'inherited' => $inherited,
@@ -461,6 +538,22 @@ class ConfigOptions
         );
         arsort($present);
 
+        // The file extensions each media type actually covers here, commonest
+        // first. A type covering more than one is a type whose files may need
+        // different download labels (text/plain: .vtt and .txt).
+        $extensions = [];
+        $extensionRows = $this->connection->fetchAllAssociative(
+            "SELECT media_type, LOWER(extension) AS extension, COUNT(*) AS n FROM media"
+            . " WHERE media_type IS NOT NULL AND media_type <> '' AND extension IS NOT NULL AND extension <> ''"
+            . " GROUP BY media_type, LOWER(extension) ORDER BY n DESC, extension ASC"
+        );
+        foreach ($extensionRows as $extensionRow) {
+            $extensions[$extensionRow['media_type']][] = [
+                'extension' => (string) $extensionRow['extension'],
+                'count' => (int) $extensionRow['n'],
+            ];
+        }
+
         $rows = [];
         foreach (self::PLAYER_GROUP_ROWS as $group) {
             $rows[] = [
@@ -470,6 +563,8 @@ class ConfigOptions
                 'group' => true,
                 'choices' => $this->playerChoices($group),
                 'warning' => null,
+                'defaultName' => null,
+                'extensions' => [],
             ];
         }
         foreach ($present as $mediaType => $count) {
@@ -479,6 +574,14 @@ class ConfigOptions
                 'count' => (int) $count,
                 'group' => false,
                 'choices' => $this->playerChoices($mediaType),
+                // What the built-in download label calls this type. When the name
+                // falls back to the extension, the commonest one stands in.
+                'defaultName' => MediaTypeLabel::nameFor(
+                    (string) $mediaType,
+                    $extensions[$mediaType][0]['extension'] ?? ''
+                ),
+                // Offered as separate label rows only when there is a choice to make.
+                'extensions' => count($extensions[$mediaType] ?? []) > 1 ? $extensions[$mediaType] : [],
                 'warning' => $mediaType === 'text/plain'
                     // Non-obvious, and it will bite whoever touches this row (STATUS §9).
                     ? 'WebVTT transcripts are stored as text/plain here. They are normally claimed by the Audio with Transcript structure before a player is ever resolved — but a mapping on this row would apply to any VTT that is not.' // @translate
@@ -491,6 +594,8 @@ class ConfigOptions
             'count' => null,
             'group' => true,
             'choices' => $this->playerChoices('default'),
+            'defaultName' => null,
+            'extensions' => [],
             'warning' => 'This is the catch-all. It applies to every media type not matched above.', // @translate
         ];
         return $rows;

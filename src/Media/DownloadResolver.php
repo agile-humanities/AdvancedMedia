@@ -107,6 +107,55 @@ class DownloadResolver
     }
 
     /**
+     * The admin's custom label pattern for this media, or null to use the
+     * built-in one.
+     *
+     * Same tiers as everything else (site → global), and within a tier one step
+     * finer than isDownloadable(): type-and-extension first, then the usual exact
+     * type → wildcard → default. There is no shipped tier — a label is a decision
+     * an install makes, and its absence means the built-in label.
+     */
+    public function labelPattern(MediaRepresentation $media, array $context = []): ?string
+    {
+        $contextName = $context['context'] ?? self::DEFAULT_CONTEXT;
+        $type = (string) $media->mediaType();
+        $keys = $this->lookupKeys($type !== '' ? $type : null);
+
+        $extension = strtolower(trim((string) $media->extension()));
+        if ($type !== '' && $extension !== '') {
+            array_unshift($keys, $type . ConfigOptions::LABEL_EXTENSION_SEPARATOR . $extension);
+        }
+
+        foreach ($this->labelMaps($contextName, $context) as $map) {
+            foreach ($keys as $key) {
+                $value = $map[$key] ?? null;
+                if (is_string($value) && trim($value) !== '') {
+                    return trim($value);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** @return array[] Site map then global map; no shipped tier. */
+    private function labelMaps(string $contextName, array $context): array
+    {
+        $maps = [];
+        if (!empty($context['site'])) {
+            try {
+                $siteMap = $this->siteSettings->get(ConfigOptions::DOWNLOAD_LABEL_KEY, []);
+            } catch (\Exception $e) {
+                $siteMap = [];
+            }
+            $maps[] = is_array($siteMap) ? ($siteMap[$contextName] ?? []) : [];
+        }
+        $globalMap = $this->settings->get(ConfigOptions::DOWNLOAD_LABEL_KEY, []);
+        $maps[] = is_array($globalMap) ? ($globalMap[$contextName] ?? []) : [];
+
+        return array_filter($maps, 'is_array');
+    }
+
+    /**
      * Suppress a media type when the item holds more than this many of it.
      * 0 means no limit.
      */
