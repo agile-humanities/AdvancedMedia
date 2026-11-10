@@ -13,7 +13,7 @@ return [
             Media\DownloadResolver::class => Service\Media\DownloadResolverFactory::class,
             Media\MediaAudit::class => Service\Media\MediaAuditFactory::class,
             File\FetchDiagnostics::class => Service\File\FetchDiagnosticsFactory::class,
-            File\ReachabilityProbe::class => \Laminas\ServiceManager\Factory\InvokableFactory::class,
+            File\ReachabilityProbe::class => Service\File\ReachabilityProbeFactory::class,
             File\ServeModeDetector::class => \Laminas\ServiceManager\Factory\InvokableFactory::class,
             Config\ConfigOptions::class => Service\Config\ConfigOptionsFactory::class,
             Config\ConfigWriter::class => Service\Config\ConfigWriterFactory::class,

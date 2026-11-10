@@ -219,6 +219,22 @@ returning a fixed token — from the server, and refuses to enable if it cannot,
 | `tls-failure` | https to itself failed — usually an untrusted cert or empty CA store |
 | `unexpected-status` | something answered, but not with 200 |
 | `unexpected-body` | 200 from something that is not this Omeka (a proxy intercepting) |
+| `media-refused` | the token path passed, but a real media file under `/files/original/` or `/files/large/` was refused (a CDN/WAF rule blocking the server itself) |
+| `media-unreachable` | the token path passed, but the connection failed when fetching a real media file |
+
+**Step 2, added 2026-10-16.** After the token passes, the probe fetches a few real media files
+(the originals of up to three small public images, then one large derivative), sending exactly
+what the server-side consumers send: GET, PHP's own User-Agent, no redirects. A 404 means that
+file is missing from storage and the next sample is tried. The token path alone was not enough:
+on production a CloudFront WAF bot rule protected `/files/original`, `/files/large` and the other
+media folders, blocking the server's own requests as non-browser traffic from a data centre,
+while the token path sat outside those folders and kept passing. Every IIIF image returned 500
+until the server's address was allowed in the WAF. Verified against production:
+
+```
+https://digital.pitts.emory.edu/files   REFUSE [media-refused]  403 by "CloudFront" (from a non-allowed IP)
+https://admin.pittsviva.org/files       PASS                    (no WAF on that host)
+```
 
 Verified against this deployment, which is *itself* an unsupported configuration:
 

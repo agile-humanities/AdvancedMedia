@@ -4,6 +4,16 @@ All notable changes to Advanced Media are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] — unreleased
+
+### Fixed
+
+- The media URL proxy's reachability check also fetches real media files (a small original, then a large
+  derivative) after the token path. Checking the token path alone passed on a production site whose CDN bot rule
+  (AWS WAF on CloudFront) refused the server's own requests for media files, so every IIIF image failed while the
+  check said all was well. The check now reports such a refusal, naming the responding server when it says who it
+  is. This fix was made in the Pitts installation on 2026-10-19 and missed 1.0.0.
+
 ## [1.0.0] — 2026-10-27
 
 First public release. Advanced Media was developed inside Agile Theme Tools and the Pitts
