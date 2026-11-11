@@ -124,6 +124,11 @@ $row = function (string $settingKey, string $rowKey, array $choices, ?string $st
 .advmedia-config .advmedia-jobwarn { margin: .5em 0 0; padding: .5em .7em; background: #fff6e5; border-left: 3px solid #e0b970; }
 .advmedia-config .advmedia-snippet { margin: .5em 0 0; padding: .7em .9em; background: #1d1f21; color: #e8e8e8; font-size: .82em; line-height: 1.45; border-radius: 3px; overflow-x: auto; white-space: pre; }
 .advmedia-config .advmedia-probe { margin: .6em 0 0; }
+.advmedia-config .advmedia-integration ul { margin: .4em 0 0 1.2em; }
+.advmedia-config .advmedia-integration li { margin: .2em 0; }
+.advmedia-config .advmedia-integration-error strong { color: #a91919; }
+.advmedia-config .advmedia-integration-warning strong { color: #8a5a00; }
+.advmedia-config .advmedia-integration-skipped { color: #767676; }
 .advmedia-config .advmedia-probe p { margin: .2em 0; }
 .advmedia-config .advmedia-probe-detail { font-size: .9em; color: #767676; }
 .advmedia-config .advmedia-intro { margin: 0 0 1.6em; padding: .8em 1em; background: #eef3f7; border: 1px solid #d4dde6; }
@@ -212,6 +217,33 @@ $row = function (string $settingKey, string $rowKey, array $choices, ?string $st
       <button type="submit" name="advancedmedia_clear_fetch_failures" value="1">
         <?= $escape($translate('Clear these')) ?>
       </button>
+    </div>
+  <?php endif; ?>
+
+  <?php // Integration checks (File\IntegrationChecks): the IIIF and file modules against this file store, live. ?>
+  <?php if (!empty($options['integrationChecks']['checks'])): $ic = $options['integrationChecks']; ?>
+    <?php
+    $icStates = ['ok' => $translate('OK'), 'warning' => $translate('Warning'), 'error' => $translate('Problem'), 'skipped' => $translate('Not checked')];
+    $icProblems = array_filter($ic['checks'], fn ($c) => in_array($c['state'], ['warning', 'error'], true));
+    ?>
+    <div class="<?= $icProblems ? 'advmedia-alert' : 'advmedia-desc' ?> advmedia-integration">
+      <h4><?= $escape($icProblems
+          ? $translate('Integration checks: the IIIF and file modules need attention.')
+          : $translate('Integration checks: the IIIF and file modules work with this file store.')) ?></h4>
+      <p class="advmedia-count">
+        <?= $escape($translate('Live requests to this site, as an anonymous visitor, of what the Agile patches to IIIF Server and Image Server protect (see Agile Theme Tools: "Patches to third-party modules").')) ?>
+        <?= $escape(sprintf($translate('Checked %s.'), date('Y-m-d H:i', (int) $ic['at']))) ?>
+        <a href="?id=AdvancedMedia&amp;advancedmedia_recheck=1"><?= $escape($translate('Check again')) ?></a>
+      </p>
+      <ul>
+        <?php foreach ($ic['checks'] as $c): ?>
+          <li class="advmedia-integration-<?= $escapeAttr($c['state']) ?>">
+            <strong><?= $escape($translate($c['label'])) ?></strong>
+            (<?= $escape($icStates[$c['state']] ?? $c['state']) ?>):
+            <?= $escape($translate($c['message'])) ?>
+          </li>
+        <?php endforeach; ?>
+      </ul>
     </div>
   <?php endif; ?>
 

@@ -4,7 +4,18 @@ All notable changes to Advanced Media are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.0.1] — unreleased
+## [1.1.0] — unreleased
+
+### Added
+
+- Integration checks on the configuration page (`File\IntegrationChecks`): live requests to the site, as an anonymous
+  visitor, of what the Agile patches to IIIF Server and Image Server protect: an original on the external store
+  processed by Image Server (a region request), a cacheable manifest, no fast tile rule in `.htaccess` with an
+  external store, the IIIF media identifier, no tile grid for untiled images. Kept for 10 minutes ("Check again"
+  reruns them); also logged by Agile Theme Tools' Easy Admin check. A job run without a request (cron) reports the
+  HTTP checks as not checked.
+
+## [1.0.1] — 2026-11-10
 
 ### Fixed
 

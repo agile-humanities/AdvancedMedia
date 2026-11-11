@@ -45,6 +45,16 @@ class Module extends AbstractModule
         // is what makes an overridden (or debris-carrying) site findable at all.
         $options['siteOverview'] = $optionsService->siteOverview();
 
+        // Live checks of the IIIF and file modules against this file store (what the Agile patches protect), as an
+        // anonymous visitor through the site's public address. Kept for a few minutes: see File\IntegrationChecks.
+        try {
+            $serverUrl = $renderer->plugin('serverUrl');
+            $options['integrationChecks'] = $services->get(File\IntegrationChecks::class)
+                ->results(rtrim($serverUrl($renderer->basePath()), '/'), !empty($_GET['advancedmedia_recheck']));
+        } catch (\Throwable $e) {
+            $options['integrationChecks'] = null;
+        }
+
         return $renderer->partial('common/config/advanced-media-config', [
             'options' => $options,
         ]);
